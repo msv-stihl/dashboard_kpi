@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard KPI</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="appRoot" class="app-root">
+      <section id="home" class="home is-active" aria-label="Início">
+        <div class="home-bg" aria-hidden="true"></div>
+        <div class="home-content">
+          <div class="logo-mark" aria-label="Logo">
+            <svg viewBox="0 0 256 128" role="img" aria-label="M">
+              <path d="M10 110 L70 10 L98 10 L38 110 Z" fill="#ff4d00"></path>
+              <path d="M92 110 L152 10 L178 10 L118 110 Z" fill="#ffffff"></path>
+              <path d="M162 110 L222 10 L246 10 L186 110 Z" fill="#ff4d00"></path>
+            </svg>
+          </div>
+          <button id="startBtn" class="start-btn" type="button">começar</button>
+        </div>
+      </section>
+
+      <section id="shell" class="shell" aria-label="Dashboard" hidden>
+        <aside class="sidebar" aria-label="Navegação">
+          <div class="sidebar-top">
+            <div class="sidebar-logo" aria-hidden="true">
+              <svg viewBox="0 0 256 128">
+                <path d="M10 110 L70 10 L98 10 L38 110 Z" fill="#ff4d00"></path>
+                <path d="M92 110 L152 10 L178 10 L118 110 Z" fill="#ffffff"></path>
+                <path d="M162 110 L222 10 L246 10 L186 110 Z" fill="#ff4d00"></path>
+              </svg>
+            </div>
+          </div>
+          <nav class="nav">
+            <a class="nav-item" href="#/geral" data-route="geral">Geral</a>
+            <a class="nav-item" href="#/facilities" data-route="facilities">Facilities</a>
+            <a class="nav-item" href="#/lsi" data-route="lsi">LSI</a>
+            <a class="nav-item" href="#/utilidades" data-route="utilidades">Utilidades</a>
+          </nav>
+          <div class="sidebar-footer">
+            <div id="lastUpdated" class="last-updated" aria-live="polite"></div>
+            <button id="refreshBtn" class="refresh-btn" type="button">atualizar</button>
+          </div>
+        </aside>
+
+        <main class="main">
+          <div id="viewHost" class="view-host"></div>
+        </main>
+      </section>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="./config.js"></script>
+    <script src="./app.js" type="module"></script>
+  </body>
+</html>
