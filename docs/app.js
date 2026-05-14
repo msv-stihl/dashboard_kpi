@@ -357,8 +357,6 @@ function mountFacilities(host, data) {
 
   const ctx1 = qs("#chartAtendimentoZUS")?.getContext("2d");
   if (ctx1) {
-    const limit = Number.isFinite(Number(az.limit)) ? Number(az.limit) : null;
-    const limitLine = limit == null ? [] : azLabels.map(() => limit);
     const datasets = azSeries.map((s) => ({
       type: "line",
       label: s?.name ?? "",
@@ -368,17 +366,6 @@ function mountFacilities(host, data) {
       pointRadius: 2,
       tension: 0.35
     }));
-    if (limit != null) {
-      datasets.push({
-        type: "line",
-        label: "",
-        data: limitLine,
-        borderColor: "#111",
-        borderWidth: 1,
-        pointRadius: 0,
-        tension: 0
-      });
-    }
     const chart = new Chart(ctx1, {
       type: "line",
       data: { labels: azLabels, datasets },
@@ -388,7 +375,7 @@ function mountFacilities(host, data) {
         plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } } },
         scales: {
           x: { grid: { display: false }, ticks: { color: "#111" } },
-          y: { beginAtZero: true, grid: { color: "rgba(0,0,0,.08)" }, ticks: { color: "#111" } }
+          y: { min: 0, max: 2, grid: { color: "rgba(0,0,0,.08)" }, ticks: { color: "#111" } }
         }
       }
     });

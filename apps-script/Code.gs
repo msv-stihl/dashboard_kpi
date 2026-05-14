@@ -985,12 +985,10 @@ function parseProdColab_(values) {
     if (!r || !r.length) continue;
     const a = r[0];
     const b = r[1];
-    const c = r[2];
     const d = r[3];
     const label = String((b ?? a) ?? "").trim();
     if (!label) continue;
-    const candidates = [c, b, d];
-    const num = candidates.map((x) => (typeof x === "number" ? x : Number(String(x ?? "").replace(",", ".")))).find((n) => Number.isFinite(n));
+    const num = typeof d === "number" ? d : Number(String(d ?? "").replace(",", "."));
     if (!Number.isFinite(num)) continue;
     out.labels.push(label);
     out.values.push(Number(num));
