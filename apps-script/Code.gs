@@ -935,6 +935,63 @@ function getRangeA1_(ss, sheetName, a1) {
   return sh.getRange(String(a1)).getValues();
 }
 
+function normalizePercent_(value) {
+  if (value == null || value === "") return 0;
+  if (typeof value === "string") {
+    const s = value.trim();
+    if (s.includes("%")) {
+      const n = Number(s.replace("%", "").replace(".", "").replace(",", ".").trim());
+      return Number.isFinite(n) ? n : 0;
+    }
+    const n = Number(s.replace(",", "."));
+    return Number.isFinite(n) ? n : 0;
+  }
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return 0;
+  if (n >= 0 && n <= 2) return n * 100;
+  return n;
+}
+
+function rowSeries_(sheet, rowNumber) {
+  const lastCol = sheet.getLastColumn();
+  if (lastCol < 2) return [];
+  const row = sheet.getRange(Number(rowNumber), 2, 1, lastCol - 1).getValues()[0];
+  const out = [];
+  for (const v of row) {
+    if (v == null || v === "") break;
+    out.push(v);
+  }
+  return out;
+}
+
+function toNumber_(v) {
+  if (v == null || v === "") return 0;
+  const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function monthLabels_(values) {
+  return (values || []).map((v) => {
+    if (v instanceof Date) return Utilities.formatDate(v, "America/Sao_Paulo", "MMM/yy");
+    return String(v ?? "").trim();
+  }).filter((s) => s);
+}
+
+function dashCustomerSatisfaction_(sheet) {
+  const labels = monthLabels_(rowSeries_(sheet, 7));
+  const vals = rowSeries_(sheet, 8).slice(0, labels.length).map(toNumber_);
+  return { labels, bars: vals, line: vals };
+}
+
+function dashSevenS_(sheet) {
+  const labels = monthLabels_(rowSeries_(sheet, 15));
+  const stihl = rowSeries_(sheet, 16).slice(0, labels.length).map(toNumber_);
+  const manserv = rowSeries_(sheet, 17).slice(0, labels.length).map(toNumber_);
+  const series = [{ name: "Stihl", data: stihl, color: "#ff4d00" }];
+  if (manserv.some((n) => n !== 0)) series.push({ name: "Manserv", data: manserv, color: "#2e2e2e" });
+  return { labels, series };
+}
+
 function parsePairs_(values) {
   const out = [];
   if (!Array.isArray(values)) return out;
@@ -957,7 +1014,13 @@ function parsePairs_(values) {
 function parseSeriesMatrix_(values) {
   const empty = { labels: [], series: [], limit: undefined };
   if (!Array.isArray(values) || !values.length) return empty;
-  const labels = values[0].slice(1).map((v) => (v == null ? "" : String(v))).filter((s) => String(s).trim() !== "");
+  const fmt = (v) => {
+    if (v instanceof Date) return Utilities.formatDate(v, "America/Sao_Paulo", "dd/MM");
+    if (v == null) return "";
+    const s = String(v).trim();
+    return s;
+  };
+  const labels = values[0].slice(1).map(fmt).filter((s) => String(s).trim() !== "");
   const labelCount = labels.length;
   const series = [];
   let limit;
@@ -1035,6 +1098,13 @@ function buildDashboardPayload_() {
 
   const dashSheet = ss.getSheetByName("dash");
   if (dashSheet) {
+    const accidents = [
+      { label: "Facilities", value: toNumber_(getA1_(ss, "dash", "B3")), lastRecord: "" },
+      { label: "LSI (Limpeza)", value: toNumber_(getA1_(ss, "dash", "B4")), lastRecord: "" },
+      { label: "Utilidades", value: toNumber_(getA1_(ss, "dash", "B5")), lastRecord: "" }
+    ];
+    const customerSatisfaction = dashCustomerSatisfaction_(dashSheet);
+    const sevenS = dashSevenS_(dashSheet);
     const tma = getA1_(ss, "dash", "B21");
     const prod = getA1_(ss, "dash", "B22");
     const retrabalho = getA1_(ss, "dash", "B73");
@@ -1051,12 +1121,12 @@ function buildDashboardPayload_() {
 
     return {
       updatedAt: last,
-      general: { accidents: [], customerSatisfaction: { labels: [], bars: [], line: [] }, sevenS: { labels: [], series: [] } },
+      general: { accidents, customerSatisfaction, sevenS },
       facilities: {
         tmaDays: Number(tma ?? 0),
-        productivityPct: Number(prod ?? 0),
-        reworkPct: Number(retrabalho ?? 0),
-        servicoExterno: Number(servExt ?? 0),
+        productivityPct: normalizePercent_(prod),
+        reworkPct: normalizePercent_(retrabalho),
+        servicoExterno: normalizePercent_(servExt),
         atendimentoZUS: {
           labels: zuParsed.labels,
           series: zuParsed.series.map((s, idx) => ({
@@ -1085,21 +1155,25 @@ function buildDashboardPayload_() {
   const csValues = getSheetValues_(ss, "general_customer_satisfaction");
   const s7Values = getSheetValues_(ss, "general_7s");
 
-  const accidents = accValues ? asTable_(accValues).map((r) => ({
+  const accValues2 = accValues;
+  const csValues2 = csValues;
+  const s7Values2 = s7Values;
+
+  const accidents2 = accValues2 ? asTable_(accValues2).map((r) => ({
     label: String(r.label ?? r.Label ?? r.area ?? r.Area ?? ""),
     value: Number(r.value ?? r.Value ?? 0),
     lastRecord: r.lastRecord ?? r.last_record ?? r.last ?? ""
   })).filter((x) => x.label) : [];
 
-  const csRows = csValues ? asTable_(csValues) : [];
-  const csLabels = csRows.map((r) => String(r.month ?? r.Mes ?? r.label ?? ""));
-  const csBars = csRows.map((r) => Number(r.value ?? r.valor ?? 0));
-  const csLine = csRows.map((r) => Number(r.line ?? r.linha ?? r.value ?? r.valor ?? 0));
+  const csRows2 = csValues2 ? asTable_(csValues2) : [];
+  const csLabels2 = csRows2.map((r) => String(r.month ?? r.Mes ?? r.label ?? ""));
+  const csBars2 = csRows2.map((r) => Number(r.value ?? r.valor ?? 0));
+  const csLine2 = csRows2.map((r) => Number(r.line ?? r.linha ?? r.value ?? r.valor ?? 0));
 
-  const s7Rows = s7Values ? asTable_(s7Values) : [];
-  const s7Labels = s7Rows.map((r) => String(r.month ?? r.Mes ?? r.label ?? ""));
-  const s7Stihl = s7Rows.map((r) => Number(r.stihl ?? r.Stihl ?? r.sth ?? 0));
-  const s7Manserv = s7Rows.map((r) => Number(r.manserv ?? r.Manserv ?? r.mans ?? 0));
+  const s7Rows2 = s7Values2 ? asTable_(s7Values2) : [];
+  const s7Labels2 = s7Rows2.map((r) => String(r.month ?? r.Mes ?? r.label ?? ""));
+  const s7Stihl2 = s7Rows2.map((r) => Number(r.stihl ?? r.Stihl ?? r.sth ?? 0));
+  const s7Manserv2 = s7Rows2.map((r) => Number(r.manserv ?? r.Manserv ?? r.mans ?? 0));
 
   const fkValues = getSheetValues_(ss, "facilities_kpis");
   let fk = {};
@@ -1138,13 +1212,13 @@ function buildDashboardPayload_() {
   return {
     updatedAt: last,
     general: {
-      accidents,
-      customerSatisfaction: { labels: csLabels, bars: csBars, line: csLine },
+      accidents: accidents2,
+      customerSatisfaction: { labels: csLabels2, bars: csBars2, line: csLine2 },
       sevenS: {
-        labels: s7Labels,
+        labels: s7Labels2,
         series: [
-          { name: "Stihl", data: s7Stihl, color: "#ff4d00" },
-          { name: "Manserv", data: s7Manserv, color: "#2e2e2e" }
+          { name: "Stihl", data: s7Stihl2, color: "#ff4d00" },
+          { name: "Manserv", data: s7Manserv2, color: "#2e2e2e" }
         ]
       }
     },

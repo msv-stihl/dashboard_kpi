@@ -375,7 +375,7 @@ function mountFacilities(host, data) {
         plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } } },
         scales: {
           x: { grid: { display: false }, ticks: { color: "#111" } },
-          y: { min: 0, max: 2, grid: { color: "rgba(0,0,0,.08)" }, ticks: { color: "#111" } }
+          y: { min: 0, max: 3, grid: { color: "rgba(0,0,0,.08)" }, ticks: { color: "#111" } }
         }
       }
     });
