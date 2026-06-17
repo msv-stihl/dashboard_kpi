@@ -246,7 +246,7 @@ body{
 }
 .small-kpis{
   display:grid;
-  grid-template-columns:repeat(3, 1fr);
+  grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
   gap:18px;
   margin-bottom:18px;
 }
@@ -298,6 +298,9 @@ body{
 }
 .productivity-card{
   padding:16px 18px 18px 18px;
+}
+.productivity-chart-wrap{
+  min-height:340px;
 }
 .productivity-empty{
   padding-top:10px;

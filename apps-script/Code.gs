@@ -972,26 +972,103 @@ function isSpciLabel_(value) {
 }
 
 function buildLsiPayload_(ss) {
-  const conventionalResult = getA1_(ss, "dash", "C100");
-  const conventionalFallback = conventionalResult != null && conventionalResult !== ""
-    ? conventionalResult
-    : getA1_(ss, "dash", "B100");
+  const zu = getRangeA1_(ss, "dash", "A102:AF105");
+  const zuParsed = parseSeriesMatrix_(zu || []);
 
   return {
+    atendimentoZUS: {
+      labels: zuParsed.labels,
+      series: zuParsed.series.map((s, idx) => ({
+        name: s.name,
+        data: s.data,
+        color: ["#2f80ed", "#f2994a", "#27ae60", "#eb5757"][idx % 4]
+      })),
+      limit: zuParsed.limit
+    },
     cronogramas: [
-      { label: "Limpeza de Salas", result: normalizePercent_(getA1_(ss, "dash", "B104")), target: normalizePercent_(getA1_(ss, "dash", "C104")) },
-      { label: "Limpeza de Banheiros", result: normalizePercent_(getA1_(ss, "dash", "B105")), target: normalizePercent_(getA1_(ss, "dash", "C105")) },
-      { label: "Recolhimento Resíduos", result: normalizePercent_(getA1_(ss, "dash", "B106")), target: normalizePercent_(getA1_(ss, "dash", "C106")) },
-      { label: "Limpeza de Piso", result: normalizePercent_(getA1_(ss, "dash", "B107")), target: normalizePercent_(getA1_(ss, "dash", "C107")) },
-      { label: "Limpeza Técnica", result: normalizePercent_(getA1_(ss, "dash", "B108")), target: normalizePercent_(getA1_(ss, "dash", "C108")) },
-      { label: "Jardinagem", result: normalizePercent_(getA1_(ss, "dash", "B109")), target: normalizePercent_(getA1_(ss, "dash", "C109")) }
+      { label: "Limpeza de Salas", result: normalizePercent_(getA1_(ss, "dash", "B114")), target: normalizePercent_(getA1_(ss, "dash", "C114")) },
+      { label: "Limpeza de Banheiros", result: normalizePercent_(getA1_(ss, "dash", "B115")), target: normalizePercent_(getA1_(ss, "dash", "C115")) },
+      { label: "Recolhimento Resíduos", result: normalizePercent_(getA1_(ss, "dash", "B116")), target: normalizePercent_(getA1_(ss, "dash", "C116")) },
+      { label: "Limpeza de Piso", result: normalizePercent_(getA1_(ss, "dash", "B117")), target: normalizePercent_(getA1_(ss, "dash", "C117")) },
+      { label: "Limpeza Técnica", result: normalizePercent_(getA1_(ss, "dash", "B118")), target: normalizePercent_(getA1_(ss, "dash", "C118")) },
+      { label: "Jardinagem", result: normalizePercent_(getA1_(ss, "dash", "B119")), target: normalizePercent_(getA1_(ss, "dash", "C119")) }
     ],
     eficacia: [
-      { label: "Jardinagem", evaluations: toNumber_(getA1_(ss, "dash", "B98")), result: normalizePercent_(getA1_(ss, "dash", "C98")) },
-      { label: "Limpeza Técnica", evaluations: toNumber_(getA1_(ss, "dash", "B99")), result: normalizePercent_(getA1_(ss, "dash", "C99")) },
-      { label: "Limpeza Convencional", evaluations: toNumber_(getA1_(ss, "dash", "B100")), result: normalizePercent_(conventionalFallback) },
-      { label: "Limpeza de Piso", evaluations: toNumber_(getA1_(ss, "dash", "B101")), result: normalizePercent_(getA1_(ss, "dash", "C101")) }
+      { label: "Jardinagem", evaluations: toNumber_(getA1_(ss, "dash", "B108")), result: normalizePercent_(getA1_(ss, "dash", "C108")) },
+      { label: "Limpeza Técnica", evaluations: toNumber_(getA1_(ss, "dash", "B109")), result: normalizePercent_(getA1_(ss, "dash", "C109")) },
+      { label: "Limpeza Convencional", evaluations: toNumber_(getA1_(ss, "dash", "B110")), result: normalizePercent_(getA1_(ss, "dash", "C110")) },
+      { label: "Limpeza de Piso", evaluations: toNumber_(getA1_(ss, "dash", "B111")), result: normalizePercent_(getA1_(ss, "dash", "C111")) }
     ]
+  };
+}
+
+function buildUtilidadesPayload_(ss) {
+  const zuLabels = getRangeA1_(ss, "dash", "A24:AF24");
+  const zuValues = getRangeA1_(ss, "dash", "A29:AF29");
+  const prodColab = getRangeA1_(ss, "dash", "A73:D78");
+  const pcParsed = parseProdColab_(prodColab || []);
+
+  const labelsRow = Array.isArray(zuLabels) && zuLabels.length ? zuLabels[0] : [];
+  const valuesRow = Array.isArray(zuValues) && zuValues.length ? zuValues[0] : [];
+  const labels = [];
+  const values = [];
+
+  for (let i = 0; i < Math.max(labelsRow.length, valuesRow.length); i++) {
+    const rawLabel = labelsRow[i];
+    const label = rawLabel instanceof Date
+      ? Utilities.formatDate(rawLabel, "America/Sao_Paulo", "dd/MM")
+      : String(rawLabel == null ? "" : rawLabel).trim();
+    if (!label) continue;
+    labels.push(label);
+    values.push(toNumber_(valuesRow[i]));
+  }
+
+  return {
+    tmaDays: toNumber_(getA1_(ss, "dash", "E21")),
+    productivityPct: normalizePercent_(getA1_(ss, "dash", "E22")),
+    avaliacoes: toNumber_(getA1_(ss, "dash", "B44")),
+    reworkPct: normalizePercent_(getA1_(ss, "dash", "B83")),
+    preventivas: normalizePercent_(getA1_(ss, "dash", "B93")),
+    atendimentoZUS: {
+      labels,
+      series: [{ name: "Utilidades", data: values, color: "#2f80ed" }]
+    },
+    produtividadePorColaborador: pcParsed
+  };
+}
+
+function buildSpciPayload_(ss) {
+  const zuLabels = getRangeA1_(ss, "dash", "A24:AF24");
+  const zuValues = getRangeA1_(ss, "dash", "A28:AF28");
+  const prodColab = getRangeA1_(ss, "dash", "A68:D72");
+  const pcParsed = parseProdColab_(prodColab || []);
+
+  const labelsRow = Array.isArray(zuLabels) && zuLabels.length ? zuLabels[0] : [];
+  const valuesRow = Array.isArray(zuValues) && zuValues.length ? zuValues[0] : [];
+  const labels = [];
+  const values = [];
+
+  for (let i = 0; i < Math.max(labelsRow.length, valuesRow.length); i++) {
+    const rawLabel = labelsRow[i];
+    const label = rawLabel instanceof Date
+      ? Utilities.formatDate(rawLabel, "America/Sao_Paulo", "dd/MM")
+      : String(rawLabel == null ? "" : rawLabel).trim();
+    if (!label) continue;
+    labels.push(label);
+    values.push(toNumber_(valuesRow[i]));
+  }
+
+  return {
+    tmaDays: toNumber_(getA1_(ss, "dash", "H21")),
+    productivityPct: normalizePercent_(getA1_(ss, "dash", "H22")),
+    avaliacoes: toNumber_(getA1_(ss, "dash", "B42")),
+    reworkPct: normalizePercent_(getA1_(ss, "dash", "B83")),
+    preventivas: normalizePercent_(getA1_(ss, "dash", "B94")),
+    atendimentoZUS: {
+      labels,
+      series: [{ name: "SPCI", data: values, color: "#2e2e2e" }]
+    },
+    produtividadePorColaborador: pcParsed
   };
 }
 
@@ -1155,12 +1232,13 @@ function buildDashboardPayload_() {
     const sevenS = dashSevenS_(dashSheet);
     const tma = getA1_(ss, "dash", "B21");
     const prod = getA1_(ss, "dash", "B22");
-    const retrabalho = getA1_(ss, "dash", "B73");
-    const servExt = getA1_(ss, "dash", "B76");
-    const zu = getRangeA1_(ss, "dash", "A24:AF28");
-    const prio = getRangeA1_(ss, "dash", "A30:B35");
+    const retrabalho = getA1_(ss, "dash", "B81");
+    const servExt = getA1_(ss, "dash", "B86");
+    const preventivas = getA1_(ss, "dash", "B92");
+    const zu = getRangeA1_(ss, "dash", "A24:AF27");
+    const prio = getRangeA1_(ss, "dash", "A32:B36");
     const aval = getRangeA1_(ss, "dash", "A37:B42");
-    const prodColab = getRangeA1_(ss, "dash", "A44:D70");
+    const prodColab = getRangeA1_(ss, "dash", "A47:D67");
 
     const zuParsed = parseSeriesMatrix_(zu || []);
     const prioPairs = parsePairs_(prio || []);
@@ -1177,6 +1255,7 @@ function buildDashboardPayload_() {
         productivityPct: normalizePercent_(prod),
         reworkPct: normalizePercent_(retrabalho),
         servicoExterno: normalizePercent_(servExt),
+        preventivas: normalizePercent_(preventivas),
         atendimentoZUS: {
           labels: zuParsed.labels,
           series: filteredZuSeries.map((s, idx) => ({
@@ -1198,6 +1277,8 @@ function buildDashboardPayload_() {
         },
         produtividadePorColaborador: pcParsed
       },
+      utilidades: buildUtilidadesPayload_(ss),
+      spci: buildSpciPayload_(ss),
       lsi: buildLsiPayload_(ss)
     };
   }
@@ -1282,6 +1363,8 @@ function buildDashboardPayload_() {
       tmaDays: Number(fk.tmaDays ?? fk.tma_days ?? fk.tma ?? 0),
       productivityPct: Number(fk.productivityPct ?? fk.productivity_pct ?? fk.produtividade ?? 0),
       reworkPct: Number(fk.reworkPct ?? fk.rework_pct ?? fk.retrabalho ?? 0),
+      servicoExterno: Number(fk.servicoExterno ?? fk.servico_externo ?? fk.servicosExternos ?? fk.servicos_externos ?? 0),
+      preventivas: Number(fk.preventivas ?? fk.preventiva ?? 0),
       atendimentoZUS: { labels: azLabels, series: azSeries, limit: Number.isFinite(azLimit) ? azLimit : undefined },
       prioridadeAlta: {
         labels: paFilteredRows.map((r) => String(r.label ?? r.nome ?? "")),
@@ -1301,6 +1384,8 @@ function buildDashboardPayload_() {
         color: String((pcRows[0] && (pcRows[0].color ?? pcRows[0].cor)) || "#2f66ff")
       }
     },
+    utilidades: buildUtilidadesPayload_(ss),
+    spci: buildSpciPayload_(ss),
     lsi: buildLsiPayload_(ss)
   };
 }

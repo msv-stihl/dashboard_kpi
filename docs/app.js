@@ -95,6 +95,30 @@ function compareToTargetText(result, target) {
   return `${formatNumberPtBR((res / tgt) * 100, { digits: 0 })}% da meta`;
 }
 
+const doughnutCenterTextPlugin = {
+  id: "doughnutCenterText",
+  afterDraw(chart, _args, pluginOptions) {
+    if (!pluginOptions?.text) return;
+    const meta = chart.getDatasetMeta(0);
+    const firstArc = meta?.data?.[0];
+    if (!firstArc) return;
+
+    const { ctx } = chart;
+    const x = firstArc.x;
+    const y = firstArc.y;
+
+    ctx.save();
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = pluginOptions.color || "#111";
+    ctx.font = pluginOptions.font || "600 22px Inter, system-ui, sans-serif";
+    ctx.fillText(String(pluginOptions.text), x, y);
+    ctx.restore();
+  }
+};
+
+Chart.register(doughnutCenterTextPlugin);
+
 function sampleData() {
   return {
     updatedAt: new Date().toISOString(),
@@ -122,6 +146,8 @@ function sampleData() {
       tmaDays: 9.2,
       productivityPct: 30,
       reworkPct: 0.5,
+      servicoExterno: 12,
+      preventivas: 94,
       atendimentoZUS: {
         labels: ["00:00", "00:30", "01:00", "01:30", "02:00"],
         series: [
@@ -153,7 +179,63 @@ function sampleData() {
         color: "#2f66ff"
       }
     },
+    utilidades: {
+      tmaDays: 7.6,
+      productivityPct: 84,
+      avaliacoes: 18,
+      reworkPct: 1.1,
+      preventivas: 93,
+      atendimentoZUS: {
+        labels: ["01/06", "02/06", "03/06", "04/06", "05/06"],
+        series: [
+          { name: "Utilidades", color: "#2f80ed", data: [1.2, 1.1, 1.4, 1.0, 0.9] }
+        ]
+      },
+      produtividadePorColaborador: {
+        items: [
+          { name: "ANDRE", value: 7.2, team: "Elétrica" },
+          { name: "CARLOS", value: 6.8, team: "Elétrica" },
+          { name: "FERNANDA", value: 8.4, team: "Civil" },
+          { name: "JOAO", value: 5.9, team: "Refrigeração" },
+          { name: "MATEUS", value: 7.7, team: "Civil" },
+          { name: "PABLO", value: 6.3, team: "Refrigeração" }
+        ],
+        color: "#2f66ff"
+      }
+    },
+    spci: {
+      tmaDays: 6.4,
+      productivityPct: 76,
+      avaliacoes: 12,
+      reworkPct: 0.9,
+      preventivas: 91,
+      atendimentoZUS: {
+        labels: ["01/06", "02/06", "03/06", "04/06", "05/06"],
+        series: [
+          { name: "SPCI", color: "#2e2e2e", data: [0.7, 0.8, 1.0, 0.9, 0.6] }
+        ]
+      },
+      produtividadePorColaborador: {
+        items: [
+          { name: "ANA", value: 6.6, team: "SPCI" },
+          { name: "BRUNO", value: 7.1, team: "SPCI" },
+          { name: "DANILO", value: 5.8, team: "SPCI" },
+          { name: "GUSTAVO", value: 8.2, team: "SPCI" },
+          { name: "MARIA", value: 6.9, team: "SPCI" }
+        ],
+        color: "#2f66ff"
+      }
+    },
     lsi: {
+      atendimentoZUS: {
+        labels: ["01/06", "02/06", "03/06", "04/06", "05/06"],
+        series: [
+          { name: "Civil", color: "#2f80ed", data: [0.8, 1.1, 0.9, 1.3, 1.2] },
+          { name: "Elétrica", color: "#f2994a", data: [0.7, 0.9, 1.0, 1.1, 1.0] },
+          { name: "Refrigeração", color: "#27ae60", data: [0.6, 0.8, 0.7, 0.9, 0.8] }
+        ],
+        limit: 2
+      },
       cronogramas: [
         { label: "Limpeza de Salas", result: 92, target: 95 },
         { label: "Limpeza de Banheiros", result: 89, target: 92 },
@@ -397,11 +479,18 @@ function mountFacilities(host, data) {
       el("div", { class: "card-title", text: label }),
       el("div", { class: "mini-value", text: valueText })
     ]);
+  const formatMetricValue = (value) => {
+    const n = Number(value ?? 0);
+    const digits = Math.abs(n % 1) > 0.001 ? 1 : 0;
+    return formatNumberPtBR(n, { digits });
+  };
 
   kpis.append(
     mkpi("TMA em dias", formatNumberPtBR(f?.tmaDays ?? 0, { digits: 1 })),
     mkpi("Produtividade", `${formatNumberPtBR(f?.productivityPct ?? 0)}%`),
-    mkpi("Retrabalho", `${formatNumberPtBR(f?.reworkPct ?? 0, { digits: 1 })}%`)
+    mkpi("Retrabalho", `${formatNumberPtBR(f?.reworkPct ?? 0, { digits: 1 })}%`),
+    mkpi("Serviços Externos", `${formatMetricValue(f?.servicoExterno ?? 0)}%`),
+    mkpi("Preventivas", `${formatMetricValue(f?.preventivas ?? 0)}%`)
   );
 
   const chartsTop = el("div", { class: "grid-3" });
@@ -422,12 +511,13 @@ function mountFacilities(host, data) {
   const bottom = el("div", { class: "facilities-bottom" });
   const filterBar = el("div", { class: "filter-chips" });
   const prodEmpty = el("div", { class: "productivity-empty", text: "Nenhum colaborador encontrado para esta equipe.", hidden: true });
+  const prodChartWrap = el("div", { class: "chart-wrap wide productivity-chart-wrap" }, [el("canvas", { id: "chartProdColab" })]);
   const prodColab = el("div", { class: "card productivity-card" }, [
     el("div", { class: "card-head" }, [
       el("div", { class: "card-title", text: "Produtividade por colaborador" }),
       filterBar
     ]),
-    el("div", { class: "chart-wrap wide" }, [el("canvas", { id: "chartProdColab" })]),
+    prodChartWrap,
     prodEmpty
   ]);
 
@@ -536,15 +626,43 @@ function mountFacilities(host, data) {
   if (ctx4) {
     const chart = new Chart(ctx4, {
       type: "bar",
-      data: { labels: [], datasets: [{ data: [], backgroundColor: pcColor, borderRadius: 8, barThickness: 18 }] },
+      data: {
+        labels: [],
+        datasets: [{
+          data: [],
+          backgroundColor: pcColor,
+          borderRadius: 8,
+          borderSkipped: false,
+          barThickness: 14,
+          maxBarThickness: 18,
+          categoryPercentage: 0.72,
+          barPercentage: 0.82
+        }]
+      },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         indexAxis: "y",
-        plugins: { legend: { display: false } },
+        layout: { padding: { right: 12 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (context) => ` ${formatMetricValue(context.raw ?? 0)}`
+            }
+          }
+        },
         scales: {
-          x: { beginAtZero: true, grid: { color: "rgba(0,0,0,.08)" }, ticks: { color: "#111" } },
-          y: { grid: { display: false }, ticks: { color: "#111" } }
+          x: {
+            beginAtZero: true,
+            grace: "10%",
+            grid: { color: "rgba(0,0,0,.08)" },
+            ticks: { color: "#111" }
+          },
+          y: {
+            grid: { display: false },
+            ticks: { color: "#111", autoSkip: false }
+          }
         }
       }
     });
@@ -558,6 +676,7 @@ function mountFacilities(host, data) {
       chart.data.labels = filtered.map((item) => item.name);
       chart.data.datasets[0].data = filtered.map((item) => item.value);
       chart.data.datasets[0].backgroundColor = filtered.map((item) => teamColors[item.team] ?? pcColor);
+      prodChartWrap.style.height = `${Math.max(340, filtered.length * 30 + 110)}px`;
       prodEmpty.hidden = filtered.length > 0;
       chart.update();
 
@@ -583,12 +702,407 @@ function mountFacilities(host, data) {
   }
 }
 
+function mountUtilidades(host, data) {
+  const u = data?.utilidades ?? {};
+  const baseTeamColors = {
+    Civil: "#2f80ed",
+    "Elétrica": "#f2994a",
+    "Refrigeração": "#27ae60",
+    Pintura: "#9b51e0"
+  };
+  const fallbackPalette = ["#2f80ed", "#f2994a", "#27ae60", "#9b51e0", "#eb5757", "#56ccf2"];
+  const collaboratorItems = getCollaboratorItems(u?.produtividadePorColaborador ?? {});
+  const uniqueTeams = Array.from(new Set(collaboratorItems.map((item) => item.team).filter(Boolean)));
+  const teamColors = { ...baseTeamColors };
+
+  uniqueTeams.forEach((team, idx) => {
+    if (!teamColors[team]) teamColors[team] = fallbackPalette[idx % fallbackPalette.length];
+  });
+
+  const kpis = el("div", { class: "small-kpis" });
+  const mkpi = (label, valueText) =>
+    el("div", { class: "card mini-kpi" }, [
+      el("div", { class: "card-title", text: label }),
+      el("div", { class: "mini-value", text: valueText })
+    ]);
+  const formatMetricValue = (value) => {
+    const n = Number(value ?? 0);
+    const digits = Math.abs(n % 1) > 0.001 ? 1 : 0;
+    return formatNumberPtBR(n, { digits });
+  };
+
+  kpis.append(
+    mkpi("TMA em dias", formatNumberPtBR(u?.tmaDays ?? 0, { digits: 1 })),
+    mkpi("Produtividade", `${formatNumberPtBR(u?.productivityPct ?? 0)}%`),
+    mkpi("Retrabalho", `${formatNumberPtBR(u?.reworkPct ?? 0, { digits: 1 })}%`),
+    mkpi("Preventivas", `${formatMetricValue(u?.preventivas ?? 0)}%`)
+  );
+
+  const top = el("div", { class: "grid-2" });
+  const zusCard = el("div", { class: "card" }, [
+    el("div", { class: "card-title", text: "Atendimento ZUS" }),
+    el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartUtilidadesZUS" })])
+  ]);
+  const avaliacoesCard = el("div", { class: "card mini-kpi" }, [
+    el("div", { class: "card-title", text: "Avaliações" }),
+    el("div", { class: "mini-value", text: formatMetricValue(u?.avaliacoes ?? 0) }),
+    el("div", { class: "kpi-foot", text: "Valor atual do indicador" })
+  ]);
+  top.append(zusCard, avaliacoesCard);
+
+  const bottom = el("div", { class: "facilities-bottom" });
+  const filterBar = el("div", { class: "filter-chips" });
+  const prodEmpty = el("div", { class: "productivity-empty", text: "Nenhum colaborador encontrado para esta equipe.", hidden: true });
+  const prodChartWrap = el("div", { class: "chart-wrap wide productivity-chart-wrap" }, [el("canvas", { id: "chartUtilidadesProdColab" })]);
+  const prodColab = el("div", { class: "card productivity-card" }, [
+    el("div", { class: "card-head" }, [
+      el("div", { class: "card-title", text: "Apontamento por colaborador" }),
+      filterBar
+    ]),
+    prodChartWrap,
+    prodEmpty
+  ]);
+  bottom.append(prodColab);
+
+  host.append(kpis, top, bottom);
+
+  const az = u?.atendimentoZUS ?? {};
+  const azLabels = Array.isArray(az.labels) ? az.labels : [];
+  const azSeries = Array.isArray(az.series) ? az.series : [];
+  const azMax = azSeries.reduce((max, series) => {
+    const seriesMax = (Array.isArray(series?.data) ? series.data : []).reduce((innerMax, value) => Math.max(innerMax, Number(value ?? 0)), 0);
+    return Math.max(max, seriesMax);
+  }, 0);
+
+  const ctx1 = qs("#chartUtilidadesZUS")?.getContext("2d");
+  if (ctx1) {
+    const datasets = azSeries.map((series) => ({
+      type: "line",
+      label: series?.name ?? "",
+      data: Array.isArray(series?.data) ? series.data : [],
+      borderColor: series?.color ?? "#2f80ed",
+      backgroundColor: series?.color ?? "#2f80ed",
+      pointRadius: 2,
+      tension: 0.35
+    }));
+    const chart = new Chart(ctx1, {
+      type: "line",
+      data: { labels: azLabels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: "#111" } },
+          y: {
+            beginAtZero: true,
+            suggestedMax: azMax > 0 ? Math.ceil(azMax * 1.2) : 5,
+            grid: { color: "rgba(0,0,0,.08)" },
+            ticks: { color: "#111" }
+          }
+        }
+      }
+    });
+    store.charts.set("chartUtilidadesZUS", chart);
+  }
+
+  const pc = u?.produtividadePorColaborador ?? {};
+  const pcColor = pc?.color ?? "#2f66ff";
+  const filterOptions = [{ label: "Todos", value: "all" }].concat(uniqueTeams.map((team) => ({ label: team, value: team })));
+  let activeFilter = "all";
+
+  filterBar.hidden = uniqueTeams.length < 2;
+
+  const ctx2 = qs("#chartUtilidadesProdColab")?.getContext("2d");
+  if (ctx2) {
+    const chart = new Chart(ctx2, {
+      type: "bar",
+      data: {
+        labels: [],
+        datasets: [{
+          data: [],
+          backgroundColor: pcColor,
+          borderRadius: 8,
+          borderSkipped: false,
+          barThickness: 14,
+          maxBarThickness: 18,
+          categoryPercentage: 0.72,
+          barPercentage: 0.82
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: "y",
+        layout: { padding: { right: 12 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (context) => ` ${formatMetricValue(context.raw ?? 0)}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            grace: "10%",
+            grid: { color: "rgba(0,0,0,.08)" },
+            ticks: { color: "#111" }
+          },
+          y: {
+            grid: { display: false },
+            ticks: { color: "#111", autoSkip: false }
+          }
+        }
+      }
+    });
+
+    const renderTeam = (teamName) => {
+      activeFilter = teamName;
+      const filtered = collaboratorItems
+        .filter((item) => activeFilter === "all" || item.team === activeFilter)
+        .sort((a, b) => b.value - a.value);
+
+      chart.data.labels = filtered.map((item) => item.name);
+      chart.data.datasets[0].data = filtered.map((item) => item.value);
+      chart.data.datasets[0].backgroundColor = filtered.map((item) => teamColors[item.team] ?? pcColor);
+      prodChartWrap.style.height = `${Math.max(340, filtered.length * 30 + 110)}px`;
+      prodEmpty.hidden = filtered.length > 0;
+      chart.update();
+
+      for (const btn of qsa(".filter-chip", filterBar)) {
+        btn.classList.toggle("is-active", btn.getAttribute("data-team") === activeFilter);
+      }
+    };
+
+    for (const option of filterOptions) {
+      filterBar.append(
+        el("button", {
+          class: `filter-chip${option.value === activeFilter ? " is-active" : ""}`,
+          type: "button",
+          "data-team": option.value,
+          text: option.label,
+          onclick: () => renderTeam(option.value)
+        })
+      );
+    }
+
+    renderTeam(activeFilter);
+    store.charts.set("chartUtilidadesProdColab", chart);
+  }
+}
+
+function mountSPCI(host, data) {
+  const u = data?.spci ?? {};
+  const baseTeamColors = {
+    Civil: "#2f80ed",
+    "Elétrica": "#f2994a",
+    "Refrigeração": "#27ae60",
+    Pintura: "#9b51e0",
+    SPCI: "#2e2e2e"
+  };
+  const fallbackPalette = ["#2e2e2e", "#2f80ed", "#f2994a", "#27ae60", "#9b51e0", "#eb5757", "#56ccf2"];
+  const collaboratorItems = getCollaboratorItems(u?.produtividadePorColaborador ?? {});
+  const uniqueTeams = Array.from(new Set(collaboratorItems.map((item) => item.team).filter(Boolean)));
+  const teamColors = { ...baseTeamColors };
+
+  uniqueTeams.forEach((team, idx) => {
+    if (!teamColors[team]) teamColors[team] = fallbackPalette[idx % fallbackPalette.length];
+  });
+
+  const kpis = el("div", { class: "small-kpis" });
+  const mkpi = (label, valueText) =>
+    el("div", { class: "card mini-kpi" }, [
+      el("div", { class: "card-title", text: label }),
+      el("div", { class: "mini-value", text: valueText })
+    ]);
+  const formatMetricValue = (value) => {
+    const n = Number(value ?? 0);
+    const digits = Math.abs(n % 1) > 0.001 ? 1 : 0;
+    return formatNumberPtBR(n, { digits });
+  };
+
+  kpis.append(
+    mkpi("TMA em dias", formatNumberPtBR(u?.tmaDays ?? 0, { digits: 1 })),
+    mkpi("Produtividade", `${formatNumberPtBR(u?.productivityPct ?? 0)}%`),
+    mkpi("Retrabalho", `${formatNumberPtBR(u?.reworkPct ?? 0, { digits: 1 })}%`),
+    mkpi("Preventivas", `${formatMetricValue(u?.preventivas ?? 0)}%`)
+  );
+
+  const top = el("div", { class: "grid-2" });
+  const zusCard = el("div", { class: "card" }, [
+    el("div", { class: "card-title", text: "Atendimento ZUS" }),
+    el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartSpciZUS" })])
+  ]);
+  const avaliacoesCard = el("div", { class: "card mini-kpi" }, [
+    el("div", { class: "card-title", text: "Avaliações" }),
+    el("div", { class: "mini-value", text: formatMetricValue(u?.avaliacoes ?? 0) }),
+    el("div", { class: "kpi-foot", text: "Valor atual do indicador" })
+  ]);
+  top.append(zusCard, avaliacoesCard);
+
+  const bottom = el("div", { class: "facilities-bottom" });
+  const filterBar = el("div", { class: "filter-chips" });
+  const prodEmpty = el("div", { class: "productivity-empty", text: "Nenhum colaborador encontrado para esta equipe.", hidden: true });
+  const prodChartWrap = el("div", { class: "chart-wrap wide productivity-chart-wrap" }, [el("canvas", { id: "chartSpciProdColab" })]);
+  const prodColab = el("div", { class: "card productivity-card" }, [
+    el("div", { class: "card-head" }, [
+      el("div", { class: "card-title", text: "Apontamento por colaborador" }),
+      filterBar
+    ]),
+    prodChartWrap,
+    prodEmpty
+  ]);
+  bottom.append(prodColab);
+
+  host.append(kpis, top, bottom);
+
+  const az = u?.atendimentoZUS ?? {};
+  const azLabels = Array.isArray(az.labels) ? az.labels : [];
+  const azSeries = Array.isArray(az.series) ? az.series : [];
+  const azMax = azSeries.reduce((max, series) => {
+    const seriesMax = (Array.isArray(series?.data) ? series.data : []).reduce((innerMax, value) => Math.max(innerMax, Number(value ?? 0)), 0);
+    return Math.max(max, seriesMax);
+  }, 0);
+
+  const ctx1 = qs("#chartSpciZUS")?.getContext("2d");
+  if (ctx1) {
+    const datasets = azSeries.map((series) => ({
+      type: "line",
+      label: series?.name ?? "",
+      data: Array.isArray(series?.data) ? series.data : [],
+      borderColor: series?.color ?? "#2e2e2e",
+      backgroundColor: series?.color ?? "#2e2e2e",
+      pointRadius: 2,
+      tension: 0.35
+    }));
+    const chart = new Chart(ctx1, {
+      type: "line",
+      data: { labels: azLabels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: "#111" } },
+          y: {
+            beginAtZero: true,
+            suggestedMax: azMax > 0 ? Math.ceil(azMax * 1.2) : 5,
+            grid: { color: "rgba(0,0,0,.08)" },
+            ticks: { color: "#111" }
+          }
+        }
+      }
+    });
+    store.charts.set("chartSpciZUS", chart);
+  }
+
+  const pc = u?.produtividadePorColaborador ?? {};
+  const pcColor = pc?.color ?? "#2f66ff";
+  const filterOptions = [{ label: "Todos", value: "all" }].concat(uniqueTeams.map((team) => ({ label: team, value: team })));
+  let activeFilter = "all";
+
+  filterBar.hidden = uniqueTeams.length < 2;
+
+  const ctx2 = qs("#chartSpciProdColab")?.getContext("2d");
+  if (ctx2) {
+    const chart = new Chart(ctx2, {
+      type: "bar",
+      data: {
+        labels: [],
+        datasets: [{
+          data: [],
+          backgroundColor: pcColor,
+          borderRadius: 8,
+          borderSkipped: false,
+          barThickness: 14,
+          maxBarThickness: 18,
+          categoryPercentage: 0.72,
+          barPercentage: 0.82
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: "y",
+        layout: { padding: { right: 12 } },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (context) => ` ${formatMetricValue(context.raw ?? 0)}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            grace: "10%",
+            grid: { color: "rgba(0,0,0,.08)" },
+            ticks: { color: "#111" }
+          },
+          y: {
+            grid: { display: false },
+            ticks: { color: "#111", autoSkip: false }
+          }
+        }
+      }
+    });
+
+    const renderTeam = (teamName) => {
+      activeFilter = teamName;
+      const filtered = collaboratorItems
+        .filter((item) => activeFilter === "all" || item.team === activeFilter)
+        .sort((a, b) => b.value - a.value);
+
+      chart.data.labels = filtered.map((item) => item.name);
+      chart.data.datasets[0].data = filtered.map((item) => item.value);
+      chart.data.datasets[0].backgroundColor = filtered.map((item) => teamColors[item.team] ?? pcColor);
+      prodChartWrap.style.height = `${Math.max(340, filtered.length * 30 + 110)}px`;
+      prodEmpty.hidden = filtered.length > 0;
+      chart.update();
+
+      for (const btn of qsa(".filter-chip", filterBar)) {
+        btn.classList.toggle("is-active", btn.getAttribute("data-team") === activeFilter);
+      }
+    };
+
+    for (const option of filterOptions) {
+      filterBar.append(
+        el("button", {
+          class: `filter-chip${option.value === activeFilter ? " is-active" : ""}`,
+          type: "button",
+          "data-team": option.value,
+          text: option.label,
+          onclick: () => renderTeam(option.value)
+        })
+      );
+    }
+
+    renderTeam(activeFilter);
+    store.charts.set("chartSpciProdColab", chart);
+  }
+}
+
 function mountLSI(host, data) {
   const lsi = data?.lsi ?? {};
+  const az = lsi?.atendimentoZUS ?? {};
+  const azLabels = Array.isArray(az.labels) ? az.labels : [];
+  const azSeries = Array.isArray(az.series) ? az.series : [];
   const cronogramas = Array.isArray(lsi?.cronogramas) ? lsi.cronogramas : [];
   const eficacia = Array.isArray(lsi?.eficacia) ? lsi.eficacia : [];
 
   host.append(el("div", { class: "section-title", text: "LSI" }));
+
+  const zusCard = el("div", { class: "card" }, [
+    el("div", { class: "card-title", text: "Atendimento ZUS" }),
+    el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartLsiAtendimentoZUS" })])
+  ]);
+
+  if (!azLabels.length || !azSeries.length) {
+    zusCard.append(el("div", { class: "placeholder compact", text: "Nenhum atendimento ZUS configurado." }));
+  }
 
   const cronTitle = el("div", { class: "section-title section-subtitle", text: "Cronogramas" });
   const cronGrid = el("div", { class: "lsi-grid cron-grid" });
@@ -633,82 +1147,70 @@ function mountLSI(host, data) {
   if (!cronogramas.length) cronGrid.append(el("div", { class: "card placeholder compact", text: "Nenhum cronograma configurado." }));
   if (!eficacia.length) effGrid.append(el("div", { class: "card placeholder compact", text: "Nenhum indicador de eficácia configurado." }));
 
-  host.append(cronTitle, cronGrid, effTitle, effGrid);
+  host.append(zusCard, cronTitle, cronGrid, effTitle, effGrid);
 
-  const maxEvaluations = Math.max(...eficacia.map((metric) => Number(metric?.evaluations ?? 0)), 1);
+  const ctxZus = qs("#chartLsiAtendimentoZUS")?.getContext("2d");
+  if (ctxZus && azLabels.length && azSeries.length) {
+    const datasets = azSeries.map((series) => ({
+      type: "line",
+      label: series?.name ?? "",
+      data: Array.isArray(series?.data) ? series.data : [],
+      borderColor: series?.color ?? "#333",
+      backgroundColor: series?.color ?? "#333",
+      pointRadius: 2,
+      tension: 0.35
+    }));
+    const chart = new Chart(ctxZus, {
+      type: "line",
+      data: { labels: azLabels, datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: "#111" } },
+          y: { min: 0, max: 3, grid: { color: "rgba(0,0,0,.08)" }, ticks: { color: "#111" } }
+        }
+      }
+    });
+    store.charts.set("chartLsiAtendimentoZUS", chart);
+  }
+
+  const eficaciaColors = {
+    Jardinagem: "#ff4fa3",
+    "Limpeza Técnica": "#3a3a3a",
+    "Limpeza Convencional": "#7b3ff2",
+    "Limpeza de Piso": "#810B38",
+    "Limpeza de Pisos": "#810B38"
+  };
 
   eficacia.forEach((metric, idx) => {
     const ctx = qs(`#chartLsiEficacia${idx}`)?.getContext("2d");
     if (!ctx) return;
 
     const value = clamp(Number(metric?.result ?? 0), 0, 100);
-    const coverage = clamp((Number(metric?.evaluations ?? 0) / maxEvaluations) * 100, 0, 100);
     const chartId = `chartLsiEficacia${idx}`;
-    let chart;
-
-    if (idx === 0) {
-      chart = new Chart(ctx, {
-        type: "doughnut",
-        data: {
-          labels: ["Resultado", "Restante"],
-          datasets: [{ data: [value, Math.max(0, 100 - value)], backgroundColor: ["#27ae60", "#e6e6e6"], borderWidth: 0 }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          rotation: -90,
-          circumference: 180,
-          cutout: "70%",
-          plugins: { legend: { display: false } }
-        }
-      });
-    } else if (idx === 1) {
-      chart = new Chart(ctx, {
-        type: "doughnut",
-        data: {
-          labels: ["Resultado", "Restante"],
-          datasets: [{ data: [value, Math.max(0, 100 - value)], backgroundColor: ["#2f80ed", "#edf2f7"], borderWidth: 0 }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          cutout: "68%",
-          plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } } }
-        }
-      });
-    } else if (idx === 2) {
-      chart = new Chart(ctx, {
-        type: "bar",
-        data: {
-          labels: ["Resultado"],
-          datasets: [{ data: [value], backgroundColor: "#f2994a", borderRadius: 10, barThickness: 26 }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          indexAxis: "y",
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { min: 0, max: 100, grid: { color: "rgba(0,0,0,.08)" }, ticks: { color: "#111" } },
-            y: { grid: { display: false }, ticks: { color: "#111" } }
+    const metricLabel = String(metric?.label ?? "");
+    const accentColor = eficaciaColors[metricLabel] ?? "#2f80ed";
+    const chart = new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: ["Resultado", "Restante"],
+        datasets: [{ data: [value, Math.max(0, 100 - value)], backgroundColor: [accentColor, "#edf2f7"], borderWidth: 0 }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: "68%",
+        plugins: {
+          legend: { display: false },
+          doughnutCenterText: {
+            text: formatPercentValue(value),
+            color: accentColor
           }
         }
-      });
-    } else {
-      chart = new Chart(ctx, {
-        type: "polarArea",
-        data: {
-          labels: ["Resultado", "Cobertura"],
-          datasets: [{ data: [value, coverage], backgroundColor: ["rgba(155,81,224,.85)", "rgba(47,128,237,.55)"], borderWidth: 0 }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } } },
-          scales: { r: { beginAtZero: true, max: 100, ticks: { display: false } } }
-        }
-      });
-    }
+      }
+    });
 
     store.charts.set(chartId, chart);
   });
@@ -737,7 +1239,8 @@ function renderRoute(route) {
   if (route === "geral") mountGeneral(host, store.data);
   else if (route === "facilities") mountFacilities(host, store.data);
   else if (route === "lsi") mountLSI(host, store.data);
-  else if (route === "utilidades") mountPlaceholder(host, "Utilidades");
+  else if (route === "utilidades") mountUtilidades(host, store.data);
+  else if (route === "spci") mountSPCI(host, store.data);
   else mountPlaceholder(host, "Dashboard");
   setNavActive(route);
 }
