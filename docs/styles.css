@@ -161,7 +161,7 @@ body{
   overflow:auto;
 }
 .view-host{
-  max-width:1160px;
+  max-width:1400px;
   margin:0 auto;
 }
 
@@ -193,6 +193,9 @@ body{
   gap:18px;
   margin-top:18px;
 }
+.facilities-bottom{
+  margin-top:18px;
+}
 
 .card{
   background:var(--card);
@@ -207,6 +210,14 @@ body{
   color:#242424;
   margin:0 0 8px 0;
 }
+.card-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:8px;
+}
+.card-head .card-title{margin:0}
 .kpi-card{
   padding:10px 14px;
   border-radius:16px;
@@ -253,13 +264,127 @@ body{
   color:rgba(0,0,0,.65);
   font-size:18px;
 }
+.placeholder.compact{min-height:220px}
 
 .chart-wrap{
   height:280px;
 }
 .chart-wrap.tall{height:320px}
 .chart-wrap.short{height:240px}
+.chart-wrap.medium{height:220px}
+.chart-wrap.wide{height:340px}
 .chart-wrap canvas{width:100%;height:100%}
+
+.filter-chips{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:8px;
+}
+.filter-chip{
+  height:32px;
+  padding:0 12px;
+  border-radius:999px;
+  border:1px solid rgba(0,0,0,.14);
+  background:#fff;
+  color:#333;
+  cursor:pointer;
+  font:600 13px var(--font);
+}
+.filter-chip.is-active{
+  background:#111;
+  border-color:#111;
+  color:#fff;
+}
+.productivity-card{
+  padding:16px 18px 18px 18px;
+}
+.productivity-empty{
+  padding-top:10px;
+  color:var(--muted);
+  font-size:13px;
+}
+
+.section-subtitle{
+  font-size:18px;
+  margin-top:20px;
+  margin-bottom:12px;
+}
+.lsi-grid{
+  display:grid;
+  gap:18px;
+}
+.cron-grid{
+  grid-template-columns:repeat(3, 1fr);
+}
+.lsi-progress-card{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}
+.lsi-progress-card.is-on-target{
+  border-color:rgba(39,174,96,.32);
+}
+.lsi-metric-line{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.lsi-metric-chip{
+  display:inline-flex;
+  align-items:center;
+  min-height:28px;
+  padding:0 10px;
+  border-radius:999px;
+  background:rgba(47,102,255,.08);
+  color:#1f3bb3;
+  font-size:12px;
+  font-weight:600;
+}
+.lsi-metric-chip.is-muted{
+  background:rgba(0,0,0,.06);
+  color:#444;
+}
+.lsi-bullet-track{
+  position:relative;
+  height:14px;
+  border-radius:999px;
+  background:#eceff4;
+  overflow:visible;
+}
+.lsi-bullet-fill{
+  height:100%;
+  border-radius:999px;
+  background:linear-gradient(90deg, #ff7b42, #ff4d00);
+}
+.lsi-bullet-target{
+  position:absolute;
+  top:-4px;
+  width:3px;
+  height:22px;
+  border-radius:999px;
+  background:#111;
+  transform:translateX(-50%);
+}
+.lsi-bullet-footer{
+  color:var(--muted);
+  font-size:13px;
+}
+.lsi-chart-card{
+  display:flex;
+  flex-direction:column;
+}
+.lsi-chart-caption{
+  color:var(--muted);
+  font-size:13px;
+  margin-bottom:6px;
+}
+.lsi-chart-value{
+  font-size:30px;
+  font-weight:600;
+  line-height:1;
+  margin-bottom:10px;
+}
 
 @media (max-width: 980px){
   .shell{grid-template-columns:220px 1fr}
@@ -268,4 +393,10 @@ body{
   .grid-main{grid-template-columns:1fr}
   .grid-bottom{grid-template-columns:1fr}
   .small-kpis{grid-template-columns:1fr}
+  .cron-grid{grid-template-columns:1fr}
+  .card-head{
+    flex-direction:column;
+    align-items:stretch;
+  }
+  .filter-chips{justify-content:flex-start}
 }

@@ -40,6 +40,61 @@ function formatNumberPtBR(value, { digits = 0 } = {}) {
   return n.toLocaleString("pt-BR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
+function stripAccents(value) {
+  return String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizeTeamName(value) {
+  const raw = String(value ?? "").trim();
+  const key = stripAccents(raw).toLowerCase();
+  if (!key) return "";
+  if (key.startsWith("civil")) return "Civil";
+  if (key.startsWith("eletric")) return "Elétrica";
+  if (key.startsWith("refrig")) return "Refrigeração";
+  if (key.startsWith("pint")) return "Pintura";
+  if (key === "spci") return "SPCI";
+  return raw;
+}
+
+function formatPercentValue(value) {
+  const n = typeof value === "number" ? value : Number(String(value ?? "").replace(",", "."));
+  const safe = Number.isFinite(n) ? n : 0;
+  const digits = Math.abs(safe % 1) > 0.001 ? 1 : 0;
+  return `${formatNumberPtBR(safe, { digits })}%`;
+}
+
+function getCollaboratorItems(metric) {
+  if (Array.isArray(metric?.items)) {
+    return metric.items
+      .map((item) => ({
+        name: String(item?.name ?? "").trim(),
+        value: Number(item?.value ?? 0),
+        team: normalizeTeamName(item?.team ?? "")
+      }))
+      .filter((item) => item.name && Number.isFinite(item.value) && item.team !== "SPCI");
+  }
+
+  const labels = Array.isArray(metric?.labels) ? metric.labels : [];
+  const values = Array.isArray(metric?.values) ? metric.values : [];
+  const teams = Array.isArray(metric?.teams) ? metric.teams : [];
+
+  return labels
+    .map((name, idx) => ({
+      name: String(name ?? "").trim(),
+      value: Number(values[idx] ?? 0),
+      team: normalizeTeamName(teams[idx] ?? "")
+    }))
+    .filter((item) => item.name && Number.isFinite(item.value) && item.team !== "SPCI");
+}
+
+function compareToTargetText(result, target) {
+  const res = Number(result ?? 0);
+  const tgt = Number(target ?? 0);
+  if (!(tgt > 0)) return "Meta não informada";
+  if (res >= tgt) return "Meta atingida";
+  return `${formatNumberPtBR((res / tgt) * 100, { digits: 0 })}% da meta`;
+}
+
 function sampleData() {
   return {
     updatedAt: new Date().toISOString(),
@@ -72,15 +127,14 @@ function sampleData() {
         series: [
           { name: "Civil", color: "#2f80ed", data: [0.6, 1.2, 0.8, 1.4, 1.6] },
           { name: "Elétrica", color: "#f2994a", data: [0.4, 1.0, 0.9, 1.1, 1.3] },
-          { name: "Refrigeração", color: "#27ae60", data: [0.3, 0.9, 0.6, 0.8, 1.1] },
-          { name: "SPCI", color: "#eb5757", data: [0.2, 0.7, 0.5, 0.9, 1.2] }
+          { name: "Refrigeração", color: "#27ae60", data: [0.3, 0.9, 0.6, 0.8, 1.1] }
         ],
         limit: 2.0
       },
       prioridadeAlta: {
-        labels: ["Civil", "Elétrica", "Refrigeração", "SPCI", "Pintura"],
-        values: [20, 28, 14, 10, 2],
-        colors: ["#2f80ed", "#f2994a", "#27ae60", "#eb5757", "#ff4d00"]
+        labels: ["Civil", "Elétrica", "Refrigeração", "Pintura"],
+        values: [20, 28, 14, 2],
+        colors: ["#2f80ed", "#f2994a", "#27ae60", "#ff4d00"]
       },
       avaliacoes: {
         labels: ["Alta", "Média", "Baixa", "Parada"],
@@ -88,10 +142,32 @@ function sampleData() {
         colors: ["#eb5757", "#f2c94c", "#2f80ed", "#27ae60"]
       },
       produtividadePorColaborador: {
-        labels: ["ANDREY", "PIERRE", "RODRIGO", "CRISTIANO", "RAFAEL", "ALEXANDRE"],
-        values: [5.2, 8.0, 1.0, 8.5, 6.2, 5.0],
+        items: [
+          { name: "ANDREY", value: 5.2, team: "Civil" },
+          { name: "PIERRE", value: 8.0, team: "Elétrica" },
+          { name: "RODRIGO", value: 1.0, team: "Pintura" },
+          { name: "CRISTIANO", value: 8.5, team: "Refrigeração" },
+          { name: "RAFAEL", value: 6.2, team: "Civil" },
+          { name: "ALEXANDRE", value: 5.0, team: "Elétrica" }
+        ],
         color: "#2f66ff"
       }
+    },
+    lsi: {
+      cronogramas: [
+        { label: "Limpeza de Salas", result: 92, target: 95 },
+        { label: "Limpeza de Banheiros", result: 89, target: 92 },
+        { label: "Recolhimento Resíduos", result: 94, target: 96 },
+        { label: "Limpeza de Piso", result: 90, target: 94 },
+        { label: "Limpeza Técnica", result: 85, target: 90 },
+        { label: "Jardinagem", result: 96, target: 94 }
+      ],
+      eficacia: [
+        { label: "Jardinagem", evaluations: 18, result: 94 },
+        { label: "Limpeza Técnica", evaluations: 21, result: 89 },
+        { label: "Limpeza Convencional", evaluations: 26, result: 91 },
+        { label: "Limpeza de Piso", evaluations: 14, result: 87 }
+      ]
     }
   };
 }
@@ -309,6 +385,12 @@ function mountGeneral(host, data) {
 
 function mountFacilities(host, data) {
   const f = data?.facilities ?? {};
+  const teamColors = {
+    Civil: "#2f80ed",
+    "Elétrica": "#f2994a",
+    "Refrigeração": "#27ae60",
+    Pintura: "#9b51e0"
+  };
   const kpis = el("div", { class: "small-kpis" });
   const mkpi = (label, valueText) =>
     el("div", { class: "card mini-kpi" }, [
@@ -337,17 +419,19 @@ function mountFacilities(host, data) {
   ]);
   chartsTop.append(left, mid, right);
 
-  const bottom = el("div", { class: "grid-bottom" });
-  const prodColab = el("div", { class: "card" }, [
-    el("div", { class: "card-title", text: "Produtividade por colaborador" }),
-    el("div", { class: "chart-wrap short" }, [el("canvas", { id: "chartProdColab" })])
-  ]);
-  const filler = el("div", { class: "card" }, [
-    el("div", { class: "card-title", text: "" }),
-    el("div", { class: "placeholder", text: "Espaço reservado para próximos gráficos" })
+  const bottom = el("div", { class: "facilities-bottom" });
+  const filterBar = el("div", { class: "filter-chips" });
+  const prodEmpty = el("div", { class: "productivity-empty", text: "Nenhum colaborador encontrado para esta equipe.", hidden: true });
+  const prodColab = el("div", { class: "card productivity-card" }, [
+    el("div", { class: "card-head" }, [
+      el("div", { class: "card-title", text: "Produtividade por colaborador" }),
+      filterBar
+    ]),
+    el("div", { class: "chart-wrap wide" }, [el("canvas", { id: "chartProdColab" })]),
+    prodEmpty
   ]);
 
-  bottom.append(prodColab, filler);
+  bottom.append(prodColab);
 
   host.append(kpis, chartsTop, bottom);
 
@@ -437,27 +521,197 @@ function mountFacilities(host, data) {
   }
 
   const pc = f?.produtividadePorColaborador ?? {};
-  const pcLabels = Array.isArray(pc.labels) ? pc.labels : [];
-  const pcValues = Array.isArray(pc.values) ? pc.values : [];
   const pcColor = pc?.color ?? "#2f66ff";
+  const collaboratorItems = getCollaboratorItems(pc);
+  const filterOptions = [
+    { label: "Todas", value: "all" },
+    { label: "Civil", value: "Civil" },
+    { label: "Elétrica", value: "Elétrica" },
+    { label: "Refrigeração", value: "Refrigeração" },
+    { label: "Pintura", value: "Pintura" }
+  ];
+  let activeFilter = "all";
 
   const ctx4 = qs("#chartProdColab")?.getContext("2d");
   if (ctx4) {
     const chart = new Chart(ctx4, {
       type: "bar",
-      data: { labels: pcLabels, datasets: [{ data: pcValues, backgroundColor: pcColor }] },
+      data: { labels: [], datasets: [{ data: [], backgroundColor: pcColor, borderRadius: 8, barThickness: 18 }] },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        indexAxis: "y",
         plugins: { legend: { display: false } },
         scales: {
-          x: { grid: { display: false }, ticks: { color: "#111" } },
-          y: { beginAtZero: true, grid: { color: "rgba(0,0,0,.08)" }, ticks: { color: "#111" } }
+          x: { beginAtZero: true, grid: { color: "rgba(0,0,0,.08)" }, ticks: { color: "#111" } },
+          y: { grid: { display: false }, ticks: { color: "#111" } }
         }
       }
     });
+
+    const renderTeam = (teamName) => {
+      activeFilter = teamName;
+      const filtered = collaboratorItems
+        .filter((item) => activeFilter === "all" || item.team === activeFilter)
+        .sort((a, b) => b.value - a.value);
+
+      chart.data.labels = filtered.map((item) => item.name);
+      chart.data.datasets[0].data = filtered.map((item) => item.value);
+      chart.data.datasets[0].backgroundColor = filtered.map((item) => teamColors[item.team] ?? pcColor);
+      prodEmpty.hidden = filtered.length > 0;
+      chart.update();
+
+      for (const btn of qsa(".filter-chip", filterBar)) {
+        btn.classList.toggle("is-active", btn.getAttribute("data-team") === activeFilter);
+      }
+    };
+
+    for (const option of filterOptions) {
+      filterBar.append(
+        el("button", {
+          class: `filter-chip${option.value === activeFilter ? " is-active" : ""}`,
+          type: "button",
+          "data-team": option.value,
+          text: option.label,
+          onclick: () => renderTeam(option.value)
+        })
+      );
+    }
+
+    renderTeam(activeFilter);
     store.charts.set("chartProdColab", chart);
   }
+}
+
+function mountLSI(host, data) {
+  const lsi = data?.lsi ?? {};
+  const cronogramas = Array.isArray(lsi?.cronogramas) ? lsi.cronogramas : [];
+  const eficacia = Array.isArray(lsi?.eficacia) ? lsi.eficacia : [];
+
+  host.append(el("div", { class: "section-title", text: "LSI" }));
+
+  const cronTitle = el("div", { class: "section-title section-subtitle", text: "Cronogramas" });
+  const cronGrid = el("div", { class: "lsi-grid cron-grid" });
+
+  for (const metric of cronogramas) {
+    const result = Number(metric?.result ?? 0);
+    const target = Number(metric?.target ?? 0);
+    const scale = Math.max(result, target, 100, 1);
+    const fillPct = clamp((result / scale) * 100, 0, 100);
+    const targetPct = clamp((target / scale) * 100, 0, 100);
+
+    cronGrid.append(
+      el("div", { class: `card lsi-progress-card${target > 0 && result >= target ? " is-on-target" : ""}` }, [
+        el("div", { class: "card-title", text: metric?.label ?? "" }),
+        el("div", { class: "lsi-metric-line" }, [
+          el("span", { class: "lsi-metric-chip", text: `Resultado ${formatPercentValue(result)}` }),
+          el("span", { class: "lsi-metric-chip is-muted", text: `Meta ${formatPercentValue(target)}` })
+        ]),
+        el("div", { class: "lsi-bullet-track" }, [
+          el("div", { class: "lsi-bullet-fill", style: `width:${fillPct}%` }),
+          el("div", { class: "lsi-bullet-target", style: `left:${targetPct}%` })
+        ]),
+        el("div", { class: "lsi-bullet-footer", text: compareToTargetText(result, target) })
+      ])
+    );
+  }
+
+  const effTitle = el("div", { class: "section-title section-subtitle", text: "Eficácia" });
+  const effGrid = el("div", { class: "grid-2" });
+
+  eficacia.forEach((metric, idx) => {
+    effGrid.append(
+      el("div", { class: "card lsi-chart-card" }, [
+        el("div", { class: "card-title", text: metric?.label ?? "" }),
+        el("div", { class: "lsi-chart-caption", text: `${formatNumberPtBR(metric?.evaluations ?? 0)} avaliações` }),
+        el("div", { class: "lsi-chart-value", text: formatPercentValue(metric?.result ?? 0) }),
+        el("div", { class: "chart-wrap medium" }, [el("canvas", { id: `chartLsiEficacia${idx}` })])
+      ])
+    );
+  });
+
+  if (!cronogramas.length) cronGrid.append(el("div", { class: "card placeholder compact", text: "Nenhum cronograma configurado." }));
+  if (!eficacia.length) effGrid.append(el("div", { class: "card placeholder compact", text: "Nenhum indicador de eficácia configurado." }));
+
+  host.append(cronTitle, cronGrid, effTitle, effGrid);
+
+  const maxEvaluations = Math.max(...eficacia.map((metric) => Number(metric?.evaluations ?? 0)), 1);
+
+  eficacia.forEach((metric, idx) => {
+    const ctx = qs(`#chartLsiEficacia${idx}`)?.getContext("2d");
+    if (!ctx) return;
+
+    const value = clamp(Number(metric?.result ?? 0), 0, 100);
+    const coverage = clamp((Number(metric?.evaluations ?? 0) / maxEvaluations) * 100, 0, 100);
+    const chartId = `chartLsiEficacia${idx}`;
+    let chart;
+
+    if (idx === 0) {
+      chart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: ["Resultado", "Restante"],
+          datasets: [{ data: [value, Math.max(0, 100 - value)], backgroundColor: ["#27ae60", "#e6e6e6"], borderWidth: 0 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          rotation: -90,
+          circumference: 180,
+          cutout: "70%",
+          plugins: { legend: { display: false } }
+        }
+      });
+    } else if (idx === 1) {
+      chart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: ["Resultado", "Restante"],
+          datasets: [{ data: [value, Math.max(0, 100 - value)], backgroundColor: ["#2f80ed", "#edf2f7"], borderWidth: 0 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "68%",
+          plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } } }
+        }
+      });
+    } else if (idx === 2) {
+      chart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: ["Resultado"],
+          datasets: [{ data: [value], backgroundColor: "#f2994a", borderRadius: 10, barThickness: 26 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: "y",
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { min: 0, max: 100, grid: { color: "rgba(0,0,0,.08)" }, ticks: { color: "#111" } },
+            y: { grid: { display: false }, ticks: { color: "#111" } }
+          }
+        }
+      });
+    } else {
+      chart = new Chart(ctx, {
+        type: "polarArea",
+        data: {
+          labels: ["Resultado", "Cobertura"],
+          datasets: [{ data: [value, coverage], backgroundColor: ["rgba(155,81,224,.85)", "rgba(47,128,237,.55)"], borderWidth: 0 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } } },
+          scales: { r: { beginAtZero: true, max: 100, ticks: { display: false } } }
+        }
+      });
+    }
+
+    store.charts.set(chartId, chart);
+  });
 }
 
 function mountPlaceholder(host, title) {
@@ -482,7 +736,7 @@ function renderRoute(route) {
 
   if (route === "geral") mountGeneral(host, store.data);
   else if (route === "facilities") mountFacilities(host, store.data);
-  else if (route === "lsi") mountPlaceholder(host, "LSI");
+  else if (route === "lsi") mountLSI(host, store.data);
   else if (route === "utilidades") mountPlaceholder(host, "Utilidades");
   else mountPlaceholder(host, "Dashboard");
   setNavActive(route);

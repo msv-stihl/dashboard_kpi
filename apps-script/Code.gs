@@ -952,6 +952,49 @@ function normalizePercent_(value) {
   return n;
 }
 
+function normalizeTeamName_(value) {
+  const raw = String(value == null ? "" : value).trim();
+  const key = raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  if (!key) return "";
+  if (key.indexOf("civil") === 0) return "Civil";
+  if (key.indexOf("eletric") === 0) return "Elétrica";
+  if (key.indexOf("refrig") === 0) return "Refrigeração";
+  if (key.indexOf("pint") === 0) return "Pintura";
+  if (key === "spci") return "SPCI";
+  return raw;
+}
+
+function isSpciLabel_(value) {
+  return normalizeTeamName_(value) === "SPCI";
+}
+
+function buildLsiPayload_(ss) {
+  const conventionalResult = getA1_(ss, "dash", "C100");
+  const conventionalFallback = conventionalResult != null && conventionalResult !== ""
+    ? conventionalResult
+    : getA1_(ss, "dash", "B100");
+
+  return {
+    cronogramas: [
+      { label: "Limpeza de Salas", result: normalizePercent_(getA1_(ss, "dash", "B104")), target: normalizePercent_(getA1_(ss, "dash", "C104")) },
+      { label: "Limpeza de Banheiros", result: normalizePercent_(getA1_(ss, "dash", "B105")), target: normalizePercent_(getA1_(ss, "dash", "C105")) },
+      { label: "Recolhimento Resíduos", result: normalizePercent_(getA1_(ss, "dash", "B106")), target: normalizePercent_(getA1_(ss, "dash", "C106")) },
+      { label: "Limpeza de Piso", result: normalizePercent_(getA1_(ss, "dash", "B107")), target: normalizePercent_(getA1_(ss, "dash", "C107")) },
+      { label: "Limpeza Técnica", result: normalizePercent_(getA1_(ss, "dash", "B108")), target: normalizePercent_(getA1_(ss, "dash", "C108")) },
+      { label: "Jardinagem", result: normalizePercent_(getA1_(ss, "dash", "B109")), target: normalizePercent_(getA1_(ss, "dash", "C109")) }
+    ],
+    eficacia: [
+      { label: "Jardinagem", evaluations: toNumber_(getA1_(ss, "dash", "B98")), result: normalizePercent_(getA1_(ss, "dash", "C98")) },
+      { label: "Limpeza Técnica", evaluations: toNumber_(getA1_(ss, "dash", "B99")), result: normalizePercent_(getA1_(ss, "dash", "C99")) },
+      { label: "Limpeza Convencional", evaluations: toNumber_(getA1_(ss, "dash", "B100")), result: normalizePercent_(conventionalFallback) },
+      { label: "Limpeza de Piso", evaluations: toNumber_(getA1_(ss, "dash", "B101")), result: normalizePercent_(getA1_(ss, "dash", "C101")) }
+    ]
+  };
+}
+
 function rowSeries_(sheet, rowNumber) {
   const lastCol = sheet.getLastColumn();
   if (lastCol < 2) return [];
@@ -1041,20 +1084,25 @@ function parseSeriesMatrix_(values) {
 }
 
 function parseProdColab_(values) {
-  const out = { labels: [], values: [], color: "#2f66ff" };
+  const out = { labels: [], values: [], teams: [], items: [], color: "#2f66ff" };
   if (!Array.isArray(values) || !values.length) return out;
   const rows = values;
   for (const r of rows) {
     if (!r || !r.length) continue;
     const a = r[0];
     const b = r[1];
+    const c = r[2];
     const d = r[3];
     const label = String((b ?? a) ?? "").trim();
+    const team = normalizeTeamName_(c || a || "");
     if (!label) continue;
     const num = typeof d === "number" ? d : Number(String(d ?? "").replace(",", "."));
     if (!Number.isFinite(num)) continue;
+    if (team === "SPCI") continue;
     out.labels.push(label);
     out.values.push(Number(num));
+    out.teams.push(team);
+    out.items.push({ name: label, value: Number(num), team: team });
   }
   return out;
 }
@@ -1118,6 +1166,8 @@ function buildDashboardPayload_() {
     const prioPairs = parsePairs_(prio || []);
     const avalPairs = parsePairs_(aval || []);
     const pcParsed = parseProdColab_(prodColab || []);
+    const filteredZuSeries = zuParsed.series.filter((s) => !isSpciLabel_(s.name));
+    const filteredPrioPairs = prioPairs.filter((p) => !isSpciLabel_(p.label));
 
     return {
       updatedAt: last,
@@ -1129,7 +1179,7 @@ function buildDashboardPayload_() {
         servicoExterno: normalizePercent_(servExt),
         atendimentoZUS: {
           labels: zuParsed.labels,
-          series: zuParsed.series.map((s, idx) => ({
+          series: filteredZuSeries.map((s, idx) => ({
             name: s.name,
             data: s.data,
             color: ["#2f80ed", "#f2994a", "#27ae60", "#eb5757", "#2e2e2e"][idx % 5]
@@ -1137,8 +1187,8 @@ function buildDashboardPayload_() {
           limit: zuParsed.limit
         },
         prioridadeAlta: {
-          labels: prioPairs.map((p) => p.label),
-          values: prioPairs.map((p) => Number(p.value ?? 0)),
+          labels: filteredPrioPairs.map((p) => p.label),
+          values: filteredPrioPairs.map((p) => Number(p.value ?? 0)),
           colors: []
         },
         avaliacoes: {
@@ -1147,7 +1197,8 @@ function buildDashboardPayload_() {
           colors: []
         },
         produtividadePorColaborador: pcParsed
-      }
+      },
+      lsi: buildLsiPayload_(ss)
     };
   }
 
@@ -1186,12 +1237,11 @@ function buildDashboardPayload_() {
   const azValues = getSheetValues_(ss, "facilities_atendimento_zus");
   const azRows = azValues ? asTable_(azValues) : [];
   const azLabels = azRows.map((r) => String(r.time ?? r.hora ?? r.label ?? ""));
-  const seriesNames = ["Civil", "Elétrica", "Refrigeração", "SPCI"];
+  const seriesNames = ["Civil", "Elétrica", "Refrigeração"];
   const seriesKeys = [
     ["civil", "Civil"],
     ["eletrica", "Elétrica", "Eletrica"],
-    ["refrigeracao", "Refrigeração", "Refrigeracao"],
-    ["spci", "SPCI"]
+    ["refrigeracao", "Refrigeração", "Refrigeracao"]
   ];
   const azSeries = seriesKeys.map((keys, idx) => ({
     name: seriesNames[idx],
@@ -1208,6 +1258,12 @@ function buildDashboardPayload_() {
 
   const pcValues = getSheetValues_(ss, "facilities_prod_colab");
   const pcRows = pcValues ? asTable_(pcValues) : [];
+  const paFilteredRows = paRows.filter((r) => !isSpciLabel_(r.label ?? r.nome ?? ""));
+  const pcItems = pcRows.map((r) => ({
+    name: String(r.name ?? r.nome ?? "").trim(),
+    value: Number(r.value ?? r.valor ?? 0),
+    team: normalizeTeamName_(r.team ?? r.equipe ?? r.area ?? r.setor ?? "")
+  })).filter((item) => item.name && Number.isFinite(item.value) && item.team !== "SPCI");
 
   return {
     updatedAt: last,
@@ -1228,9 +1284,9 @@ function buildDashboardPayload_() {
       reworkPct: Number(fk.reworkPct ?? fk.rework_pct ?? fk.retrabalho ?? 0),
       atendimentoZUS: { labels: azLabels, series: azSeries, limit: Number.isFinite(azLimit) ? azLimit : undefined },
       prioridadeAlta: {
-        labels: paRows.map((r) => String(r.label ?? r.nome ?? "")),
-        values: paRows.map((r) => Number(r.value ?? r.valor ?? 0)),
-        colors: paRows.map((r) => String(r.color ?? r.cor ?? "")).filter((c) => c)
+        labels: paFilteredRows.map((r) => String(r.label ?? r.nome ?? "")),
+        values: paFilteredRows.map((r) => Number(r.value ?? r.valor ?? 0)),
+        colors: paFilteredRows.map((r) => String(r.color ?? r.cor ?? "")).filter((c) => c)
       },
       avaliacoes: {
         labels: avRows.map((r) => String(r.label ?? r.nome ?? "")),
@@ -1238,11 +1294,14 @@ function buildDashboardPayload_() {
         colors: avRows.map((r) => String(r.color ?? r.cor ?? "")).filter((c) => c)
       },
       produtividadePorColaborador: {
-        labels: pcRows.map((r) => String(r.name ?? r.nome ?? "")),
-        values: pcRows.map((r) => Number(r.value ?? r.valor ?? 0)),
+        labels: pcItems.map((item) => item.name),
+        values: pcItems.map((item) => item.value),
+        teams: pcItems.map((item) => item.team),
+        items: pcItems,
         color: String((pcRows[0] && (pcRows[0].color ?? pcRows[0].cor)) || "#2f66ff")
       }
-    }
+    },
+    lsi: buildLsiPayload_(ss)
   };
 }
 
