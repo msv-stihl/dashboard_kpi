@@ -256,6 +256,23 @@
     margin-top:2px;
     height:13px;
   }
+  .week-range .week-tag.is-loading{
+    position:relative;
+    padding-right:18px;
+  }
+  .week-range .week-tag.is-loading::after{
+    content:'';
+    position:absolute;
+    top:50%;
+    right:0;
+    width:12px;
+    height:12px;
+    margin-top:-6px;
+    border-radius:50%;
+    border:2px solid rgba(221,139,46,.24);
+    border-top-color:var(--highlight);
+    animation:spin .8s linear infinite;
+  }
   .btn-current{
     font-family:var(--font-body); font-size:13px; font-weight:600;
     color:var(--oficina-color); background:var(--highlight-soft);
@@ -281,8 +298,32 @@
     padding-bottom:6px;
     opacity:1;
     transition:opacity .12s ease;
+    position:relative;
+    min-height:200px;
   }
   .week-grid.fading{ opacity:0; }
+  .week-grid.is-loading::before{
+    content:'';
+    position:absolute;
+    inset:0;
+    background:rgba(245,246,243,.62);
+    border-radius:var(--radius);
+    z-index:8;
+    backdrop-filter:blur(1px);
+  }
+  .week-grid.is-loading::after{
+    content:'';
+    position:absolute;
+    top:18px;
+    right:18px;
+    width:26px;
+    height:26px;
+    border-radius:50%;
+    border:3px solid rgba(60,110,143,.18);
+    border-top-color:var(--oficina-color);
+    animation:spin .8s linear infinite;
+    z-index:9;
+  }
 
   .day-section{
     background:var(--surface);
@@ -327,8 +368,12 @@
     gap:5px;
     padding:9px 10px 9px 16px;
     border-bottom:1px solid var(--border-soft);
+    background:var(--status-bg, var(--surface));
+    color:var(--status-fg, var(--ink));
+    transition:filter .15s ease, transform .15s ease;
   }
   .os-row.has-details{ cursor:pointer; }
+  .os-row.has-details:hover{ filter:brightness(.985); }
   .day-rows .os-row:last-child{ border-bottom:none; }
   .os-row::before{
     content:'';
@@ -340,37 +385,37 @@
   }
 
   .os-info{ display:flex; flex-direction:column; gap:2px; min-width:0; }
-  .os-code{ font-family:var(--font-mono); font-size:9.5px; color:var(--ink-faint); }
-  .os-title{ font-size:12px; line-height:1.32; color:var(--ink); }
+  .os-code{ font-family:var(--font-mono); font-size:9.5px; color:var(--status-muted, var(--ink-faint)); }
+  .os-title{ font-size:12px; line-height:1.32; color:var(--status-fg, var(--ink)); }
 
   .os-meta{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-  .os-hh{ font-family:var(--font-mono); font-size:11px; color:var(--ink); white-space:nowrap; }
-  .os-exec{ font-family:var(--font-mono); font-size:11px; color:var(--ink-soft); white-space:nowrap; }
+  .os-hh{ font-family:var(--font-mono); font-size:11px; color:var(--status-fg, var(--ink)); white-space:nowrap; }
+  .os-exec{ font-family:var(--font-mono); font-size:11px; color:var(--status-muted, var(--ink-soft)); white-space:nowrap; }
   .os-resources{ display:flex; gap:4px; flex-wrap:wrap; }
   .os-detail{
     display:none;
     margin-top:2px;
     padding:8px 10px;
     border-radius:8px;
-    background:var(--surface-muted);
-    border:1px solid var(--border-soft);
+    background:var(--detail-bg, var(--surface-muted));
+    border:1px solid var(--detail-border, var(--border-soft));
     font-size:11px;
     line-height:1.45;
-    color:var(--ink-soft);
+    color:var(--status-muted, var(--ink-soft));
   }
   .os-row.is-open .os-detail{ display:block; }
   .resource-tag{
     font-size:10px;
     font-family:var(--font-body);
     font-weight:500;
-    color:var(--ink-soft);
-    background:var(--surface);
-    border:1px solid var(--border);
+    color:var(--status-muted, var(--ink-soft));
+    background:var(--chip-bg, var(--surface));
+    border:1px solid var(--chip-border, var(--border));
     border-radius:999px;
     padding:2px 8px;
     white-space:nowrap;
   }
-  .resource-empty{ font-family:var(--font-mono); font-size:11px; color:var(--ink-faint); }
+  .resource-empty{ font-family:var(--font-mono); font-size:11px; color:var(--status-muted, var(--ink-faint)); }
 
   .day-empty{
     flex:1;
@@ -402,17 +447,6 @@
   .day-section.is-weekend .load-na{ color:var(--weekend-ink-soft); }
   .day-section.is-weekend .load-bar-track{ background:var(--weekend-border); }
   .day-section.is-weekend .os-row{ border-bottom-color:var(--weekend-border); }
-  .day-section.is-weekend .os-code{ color:var(--weekend-ink-faint); }
-  .day-section.is-weekend .os-title{ color:var(--weekend-ink); }
-  .day-section.is-weekend .os-hh{ color:var(--weekend-ink); }
-  .day-section.is-weekend .os-exec{ color:var(--weekend-ink-soft); }
-  .day-section.is-weekend .os-detail{
-    background:var(--weekend-bg-head);
-    border-color:var(--weekend-border);
-    color:var(--weekend-ink-soft);
-  }
-  .day-section.is-weekend .resource-tag{ background:var(--weekend-bg-head); border-color:var(--weekend-border); color:var(--weekend-ink-soft); }
-  .day-section.is-weekend .resource-empty{ color:var(--weekend-ink-faint); }
   .day-section.is-weekend .day-empty{ color:var(--weekend-ink-faint); }
   .day-section.is-weekend.is-today{ border-color:var(--oficina-color); }
   .day-section.is-weekend.is-today .day-head{ background:var(--weekend-bg-head); border-bottom-color:var(--oficina-color); }
@@ -445,6 +479,10 @@
     }
     .main{ padding:20px 16px 40px; }
     .week-grid{ grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:74%; }
+  }
+
+  @keyframes spin{
+    to{ transform:rotate(360deg); }
   }
 </style>
 </head>
@@ -749,8 +787,58 @@
       description: String(o?.description ?? '').trim(),
       hh: Number(o?.hh ?? 0) || 0,
       exec: Number(o?.exec ?? 1) || 1,
+      estado: Number(o?.estado ?? 0) || 0,
       status: String(o?.status ?? 'pending'),
       resources: Array.isArray(o?.resources) ? o.resources.map(r=>String(r ?? '').trim()).filter(Boolean) : [],
+    };
+  }
+
+  function getOrderVisual(order){
+    const estado = Number(order?.estado ?? 0);
+    const orderDate = order?.date instanceof Date ? order.date : new Date(order?.date ?? '');
+    const isPast = orderDate instanceof Date && !Number.isNaN(orderDate.getTime()) && orderDate < today;
+
+    if(estado === 96){
+      return {
+        bg:'#7F8487',
+        fg:'#FFFFFF',
+        muted:'rgba(255,255,255,.82)',
+        detailBg:'rgba(255,255,255,.12)',
+        detailBorder:'rgba(255,255,255,.16)',
+        chipBg:'rgba(255,255,255,.12)',
+        chipBorder:'rgba(255,255,255,.18)'
+      };
+    }
+    if(estado === 77 || estado === 99){
+      return {
+        bg:'#9AD872',
+        fg:'#1A1E22',
+        muted:'rgba(26,30,34,.72)',
+        detailBg:'rgba(255,255,255,.34)',
+        detailBorder:'rgba(26,30,34,.08)',
+        chipBg:'rgba(255,255,255,.5)',
+        chipBorder:'rgba(26,30,34,.1)'
+      };
+    }
+    if(estado === 55 || (estado === 50 && isPast)){
+      return {
+        bg:'#FFD65A',
+        fg:'#1A1E22',
+        muted:'rgba(26,30,34,.72)',
+        detailBg:'rgba(255,255,255,.36)',
+        detailBorder:'rgba(26,30,34,.08)',
+        chipBg:'rgba(255,255,255,.52)',
+        chipBorder:'rgba(26,30,34,.1)'
+      };
+    }
+    return {
+      bg:'var(--surface)',
+      fg:'var(--ink)',
+      muted:'var(--ink-soft)',
+      detailBg:'var(--surface-muted)',
+      detailBorder:'var(--border-soft)',
+      chipBg:'var(--surface)',
+      chipBorder:'var(--border)'
     };
   }
 
@@ -838,10 +926,10 @@
   }
 
   async function ensureWeekData(monday){
-    if(!remoteEndpoint) return;
+    if(!remoteEndpoint) return false;
     const key = monday.toISOString().slice(0, 10);
     const payload = await fetchWeekData(monday);
-    if(!payload || typeof payload !== 'object' || !payload.data) return;
+    if(!payload || typeof payload !== 'object' || !payload.data) return false;
 
     const next = makeEmptyData();
     OFICINAS.forEach(of=>{
@@ -857,8 +945,8 @@
     });
 
     DATA = next;
-    weekTagEl.textContent = weekOffset===0 ? 'SEMANA ATUAL' : (weekOffset<0 ? 'SEMANA ANTERIOR' : 'PRÓXIMA SEMANA');
     weekTagEl.dataset.week = key;
+    return true;
   }
 
   function getMonday(date){
@@ -958,6 +1046,17 @@
   const currentWeekBtn = document.getElementById('currentWeekBtn');
   const weekListEl = document.getElementById('weekList');
   const backToDashboardBtn = document.getElementById('backToDashboardBtn');
+  const prevWeekBtn = document.getElementById('prevWeek');
+  const nextWeekBtn = document.getElementById('nextWeek');
+
+  function setWeekLoading(loading){
+    weekListEl.classList.toggle('is-loading', loading);
+    weekTagEl.classList.toggle('is-loading', loading);
+    prevWeekBtn.disabled = loading;
+    nextWeekBtn.disabled = loading;
+    currentWeekBtn.disabled = loading || weekOffset===0;
+    sidebarEl.querySelectorAll('button').forEach((btn)=>{ btn.disabled = loading; });
+  }
 
   function formatRange(monday, sunday){
     const d1 = monday.getDate(), d2 = sunday.getDate();
@@ -992,9 +1091,22 @@
     const sunday = addDays(monday, 6);
     const days = Array.from({length:7}, (_,i)=>addDays(monday,i));
 
+    let hasRemoteData = false;
+    let remoteError = '';
     if(remoteEndpoint){
+      setWeekLoading(true);
       weekListEl.classList.add('fading');
-      try { await ensureWeekData(monday); } catch {}
+      try { hasRemoteData = await ensureWeekData(monday); }
+      catch(e){
+        remoteError = e?.message ? String(e.message) : 'Falha ao carregar dados';
+        try{ console.error(e); } catch {}
+      }
+      if(!hasRemoteData){
+        DATA = makeEmptyData();
+        weekTagEl.title = remoteError;
+      } else {
+        weekTagEl.title = '';
+      }
     }
 
     const unit = getActiveUnit();
@@ -1008,7 +1120,8 @@
       fmt1(unit.journey.hours)+'h/dia ('+journeyDaysLabel(unit.journey.days)+')';
 
     weekRangeTextEl.textContent = formatRange(monday, sunday);
-    weekTagEl.textContent = weekOffset===0 ? 'SEMANA ATUAL' : (weekOffset<0 ? 'SEMANA ANTERIOR' : 'PRÓXIMA SEMANA');
+    const tagBase = weekOffset===0 ? 'SEMANA ATUAL' : (weekOffset<0 ? 'SEMANA ANTERIOR' : 'PRÓXIMA SEMANA');
+    weekTagEl.textContent = (remoteEndpoint && !hasRemoteData) ? (tagBase + ' • OFFLINE') : tagBase;
     currentWeekBtn.disabled = weekOffset===0;
 
     const ordersByDay = {};
@@ -1084,9 +1197,17 @@
         } else {
           dayOrders.forEach(o=>{
             const status = STATUS[o.status];
+            const visual = getOrderVisual(o);
             const row = document.createElement('div');
             row.className = 'os-row' + (o.description ? ' has-details' : '');
             row.style.setProperty('--status-color', status.color);
+            row.style.setProperty('--status-bg', visual.bg);
+            row.style.setProperty('--status-fg', visual.fg);
+            row.style.setProperty('--status-muted', visual.muted);
+            row.style.setProperty('--detail-bg', visual.detailBg);
+            row.style.setProperty('--detail-border', visual.detailBorder);
+            row.style.setProperty('--chip-bg', visual.chipBg);
+            row.style.setProperty('--chip-border', visual.chipBorder);
 
             const resourcesHtml = o.resources.length
               ? o.resources.map(r=>'<span class="resource-tag">'+r+'</span>').join('')
@@ -1129,11 +1250,12 @@
       });
 
       weekListEl.classList.remove('fading');
+      if(remoteEndpoint) setWeekLoading(false);
     }, 110);
   }
 
-  document.getElementById('prevWeek').addEventListener('click', ()=>{ weekOffset--; render(); });
-  document.getElementById('nextWeek').addEventListener('click', ()=>{ weekOffset++; render(); });
+  prevWeekBtn.addEventListener('click', ()=>{ weekOffset--; render(); });
+  nextWeekBtn.addEventListener('click', ()=>{ weekOffset++; render(); });
   currentWeekBtn.addEventListener('click', ()=>{ weekOffset=0; render(); });
   if(backToDashboardBtn) backToDashboardBtn.addEventListener('click', goBackToDashboard);
 

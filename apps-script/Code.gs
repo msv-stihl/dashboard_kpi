@@ -1458,6 +1458,12 @@ function buildProgSemPayload_(e) {
   if (cached) {
     try { return JSON.parse(cached); } catch {}
   }
+  const putCacheIfFits_ = (value) => {
+    try {
+      const json = JSON.stringify(value);
+      if (json.length <= 95000) cache.put(cacheKey, json, 120);
+    } catch {}
+  };
 
   const mkEmptyData_ = () => ({
     civil: [],
@@ -1479,7 +1485,7 @@ function buildProgSemPayload_(e) {
       data: mkEmptyData_(),
       meta: { error: "Aba prisma_source não encontrada." }
     };
-    cache.put(cacheKey, JSON.stringify(payload), 120);
+    putCacheIfFits_(payload);
     return payload;
   }
 
@@ -1493,7 +1499,7 @@ function buildProgSemPayload_(e) {
       data: mkEmptyData_(),
       meta: { scanned: 0 }
     };
-    cache.put(cacheKey, JSON.stringify(payload), 120);
+    putCacheIfFits_(payload);
     return payload;
   }
 
@@ -1582,6 +1588,7 @@ function buildProgSemPayload_(e) {
       description,
       hh,
       exec,
+      estado,
       status: statusFromEstado(estado),
       resources: []
     };
@@ -1599,7 +1606,7 @@ function buildProgSemPayload_(e) {
     data: out,
     meta: { scanned, kept }
   };
-  cache.put(cacheKey, JSON.stringify(payload), 120);
+  putCacheIfFits_(payload);
   return payload;
 }
 

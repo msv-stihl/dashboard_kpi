@@ -258,7 +258,8 @@ const store = {
   data: null,
   lastError: "",
   charts: new Map(),
-  loading: false
+  loading: false,
+  lastFetchAt: null
 };
 
 function destroyCharts() {
@@ -271,6 +272,20 @@ function destroyCharts() {
 function setLastUpdatedText(text) {
   const node = qs("#lastUpdated");
   if (node) node.textContent = text || "";
+}
+
+function setDashboardLoading(loading) {
+  const refreshBtn = qs("#refreshBtn");
+  const viewHost = qs("#viewHost");
+  if (refreshBtn) {
+    refreshBtn.disabled = loading;
+    refreshBtn.classList.toggle("is-loading", loading);
+    refreshBtn.setAttribute("aria-busy", loading ? "true" : "false");
+  }
+  if (viewHost) {
+    viewHost.classList.toggle("is-loading", loading);
+    viewHost.setAttribute("aria-busy", loading ? "true" : "false");
+  }
 }
 
 function setNavActive(route) {
@@ -321,13 +336,13 @@ function fetchJsonp(urlString, { force = false } = {}) {
 async function fetchDashboardData({ force = false } = {}) {
   if (store.loading) return store.data;
   store.loading = true;
-  const refreshBtn = qs("#refreshBtn");
-  if (refreshBtn) refreshBtn.disabled = true;
+  setDashboardLoading(true);
   try {
     const endpoint = String(cfg.dataEndpoint || "").trim();
     if (!endpoint) {
       store.data = sampleData();
       store.lastError = "";
+      store.lastFetchAt = new Date();
       localStorage.setItem("dashboard:lastData", JSON.stringify(store.data));
       return store.data;
     }
@@ -354,6 +369,7 @@ async function fetchDashboardData({ force = false } = {}) {
     if (!payload || typeof payload !== "object") throw new Error("Resposta inválida");
     store.data = payload;
     store.lastError = "";
+    store.lastFetchAt = new Date();
     localStorage.setItem("dashboard:lastData", JSON.stringify(store.data));
     return store.data;
   } catch (e) {
@@ -366,13 +382,17 @@ async function fetchDashboardData({ force = false } = {}) {
     return store.data;
   } finally {
     store.loading = false;
-    if (refreshBtn) refreshBtn.disabled = false;
+    setDashboardLoading(false);
   }
 }
 
 function updateStatusLine() {
-  const d = store.data?.updatedAt ? new Date(store.data.updatedAt) : null;
-  const base = d && !Number.isNaN(d.getTime()) ? `Atualizado: ${formatDatePtBR(d)} ${String(d.toLocaleTimeString("pt-BR")).slice(0, 5)}` : "";
+  const fetchDate = store.lastFetchAt instanceof Date ? store.lastFetchAt : null;
+  const payloadDate = store.data?.updatedAt ? new Date(store.data.updatedAt) : null;
+  const primaryDate = fetchDate && !Number.isNaN(fetchDate.getTime()) ? fetchDate : payloadDate;
+  const base = primaryDate && !Number.isNaN(primaryDate.getTime())
+    ? `Último fetch: ${formatDatePtBR(primaryDate)} ${String(primaryDate.toLocaleTimeString("pt-BR")).slice(0, 5)}`
+    : "";
   const note = store.data?.note ? ` • ${store.data.note}` : "";
   const err = store.lastError ? ` • ${store.lastError}` : "";
   setLastUpdatedText(`${base}${note}${err}`.trim());
