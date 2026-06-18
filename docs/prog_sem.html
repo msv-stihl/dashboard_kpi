@@ -825,11 +825,11 @@
       payload = await res.json();
     } else {
       try{
+        payload = await fetchJsonp(url.toString());
+      } catch {
         const res = await fetch(url.toString(), { method:'GET', mode:'cors', cache:'no-store' });
         if(!res.ok) throw new Error('HTTP ' + res.status);
         payload = await res.json();
-      } catch {
-        payload = await fetchJsonp(url.toString());
       }
     }
 
