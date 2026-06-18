@@ -1241,6 +1241,10 @@ function renderRoute(route) {
   else if (route === "lsi") mountLSI(host, store.data);
   else if (route === "utilidades") mountUtilidades(host, store.data);
   else if (route === "spci") mountSPCI(host, store.data);
+  else if (route === "programacao") {
+    location.href = "./prog_sem.html";
+    return;
+  }
   else mountPlaceholder(host, "Dashboard");
   setNavActive(route);
 }

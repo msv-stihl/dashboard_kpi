@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Programação Semanal de OS</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F5F6F3;
+    --surface:#FFFFFF;
+    --surface-muted:#FAFAF8;
+    --border:#E3E5E1;
+    --border-soft:#ECEDEA;
+    --ink:#1A1E22;
+    --ink-soft:#5C6470;
+    --ink-faint:#9AA1AC;
+
+    --highlight:#DD8B2E;
+    --highlight-soft:#FBF1E2;
+
+    --st-pending:#8B93A1;
+    --st-pending-bg:#EEF0F2;
+    --st-progress:#C2811C;
+    --st-progress-bg:#FBF0DE;
+    --st-done:#3F8F5F;
+    --st-done-bg:#E9F4ED;
+
+    --load-ok:#3F8F5F;
+    --load-warn:#C2811C;
+    --load-over:#C1473F;
+
+    --oficina-color:#3C6E8F;
+
+    --weekend-bg:#23262C;
+    --weekend-bg-head:#1B1E23;
+    --weekend-border:#34373E;
+    --weekend-ink:#F2F1ED;
+    --weekend-ink-soft:#B9BCC3;
+    --weekend-ink-faint:#7E828B;
+
+    --radius:10px;
+    --font-display:'Space Grotesk', sans-serif;
+    --font-body:'Inter', sans-serif;
+    --font-mono:'IBM Plex Mono', monospace;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+  }
+
+  .app{
+    display:flex;
+    min-height:100vh;
+    max-width:1500px;
+    margin:0 auto;
+  }
+
+  /* ---------------- Sidebar ---------------- */
+  .sidebar{
+    width:228px;
+    flex-shrink:0;
+    background:var(--surface);
+    border-right:1px solid var(--border);
+    padding:22px 12px;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+  }
+  .sidebar-head{
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    font-weight:500;
+    letter-spacing:0.1em;
+    color:var(--ink-faint);
+    text-transform:uppercase;
+    padding:0 12px 12px;
+  }
+  .oficina-item{
+    display:flex;
+    flex-direction:column;
+    align-items:flex-start;
+    gap:1px;
+    width:100%;
+    text-align:left;
+    background:transparent;
+    border:none;
+    border-left:3px solid transparent;
+    border-radius:6px;
+    padding:9px 11px;
+    cursor:pointer;
+    font-family:var(--font-body);
+    color:var(--ink-soft);
+    transition:background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .oficina-item:hover{ background:var(--surface-muted); }
+  .oficina-item .o-name{ font-size:13.5px; font-weight:500; }
+  .oficina-item .o-size{ font-size:11px; color:var(--ink-faint); font-family:var(--font-mono); }
+  .oficina-item.active{
+    background:var(--surface-muted);
+    border-left-color:var(--item-color);
+    color:var(--ink);
+  }
+  .oficina-item.active .o-name{ color:var(--item-color); font-weight:600; }
+  .oficina-item:focus-visible{ outline:2px solid var(--item-color); outline-offset:-2px; }
+
+  .subteam-list{
+    display:flex;
+    flex-direction:column;
+    gap:1px;
+    margin:2px 0 8px 17px;
+    padding-left:9px;
+    border-left:1px solid var(--border-soft);
+  }
+  .subteam-item{
+    text-align:left;
+    background:transparent;
+    border:none;
+    border-radius:5px;
+    padding:6px 10px;
+    cursor:pointer;
+    font-family:var(--font-mono);
+    font-size:11.5px;
+    color:var(--ink-soft);
+    transition:background .15s ease, color .15s ease;
+  }
+  .subteam-item:hover{ background:var(--surface-muted); }
+  .subteam-item.active{ background:var(--surface-muted); color:var(--item-color); font-weight:600; }
+  .subteam-item:focus-visible{ outline:2px solid var(--item-color); outline-offset:-2px; }
+
+  /* ---------------- Main ---------------- */
+  .main{
+    flex:1;
+    min-width:0;
+    padding:26px 32px 60px;
+  }
+
+  .topbar{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:24px;
+    flex-wrap:wrap;
+    margin-bottom:22px;
+  }
+  .topbar-left{
+    display:flex;
+    align-items:flex-start;
+    gap:14px;
+    flex-wrap:wrap;
+  }
+  .btn-back{
+    height:42px;
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding:0 14px;
+    border-radius:9px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    color:var(--ink-soft);
+    font:600 13px var(--font-body);
+    cursor:pointer;
+    white-space:nowrap;
+    transition:background .15s ease, border-color .15s ease, color .15s ease;
+  }
+  .btn-back:hover{
+    background:var(--surface-muted);
+    border-color:var(--oficina-color);
+    color:var(--oficina-color);
+  }
+  .btn-back:focus-visible{ outline:2px solid var(--oficina-color); outline-offset:2px; }
+  .brand{ display:flex; align-items:center; gap:14px; }
+  .brand-mark{
+    width:44px;height:44px;
+    border-radius:9px;
+    background:var(--oficina-color);
+    color:#fff;
+    font-family:var(--font-mono);
+    font-weight:600;
+    font-size:13px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    letter-spacing:0.3px;
+    flex-shrink:0;
+    transition:background .2s ease;
+  }
+  .brand h1{
+    font-family:var(--font-display);
+    font-size:21px;
+    font-weight:600;
+    margin:0;
+    letter-spacing:-0.01em;
+  }
+  .brand p{ margin:2px 0 0; font-size:13px; color:var(--ink-soft); }
+
+  .week-summary{ text-align:right; }
+  .summary-total{ font-family:var(--font-mono); font-size:13px; color:var(--ink-soft); }
+  .summary-total b{ color:var(--ink); font-weight:600; font-size:14px; }
+  .summary-load{ font-size:11.5px; color:var(--ink-faint); margin-top:2px; }
+
+  /* ---------------- Controls ---------------- */
+  .controls{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    flex-wrap:wrap;
+    margin-bottom:14px;
+    padding:13px 18px;
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+  }
+  .week-nav{ display:flex; align-items:center; gap:14px; }
+  .nav-arrow{
+    width:34px;height:34px;
+    border-radius:8px;
+    border:1px solid var(--border);
+    background:var(--surface-muted);
+    color:var(--oficina-color);
+    font-size:17px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    transition:background .15s ease, border-color .15s ease;
+    flex-shrink:0;
+  }
+  .nav-arrow:hover{ background:var(--highlight-soft); border-color:var(--oficina-color); }
+  .nav-arrow:focus-visible{ outline:2px solid var(--oficina-color); outline-offset:2px; }
+
+  .week-range{
+    font-family:var(--font-display);
+    font-size:16px;
+    font-weight:600;
+    min-width:230px;
+    text-align:center;
+    letter-spacing:-0.01em;
+  }
+  .week-range .week-tag{
+    display:block;
+    font-family:var(--font-mono);
+    font-size:10.5px;
+    font-weight:500;
+    color:var(--highlight);
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    margin-top:2px;
+    height:13px;
+  }
+  .btn-current{
+    font-family:var(--font-body); font-size:13px; font-weight:600;
+    color:var(--oficina-color); background:var(--highlight-soft);
+    border:1px solid transparent; border-radius:8px; padding:9px 16px;
+    cursor:pointer; white-space:nowrap;
+    transition:filter .15s ease;
+  }
+  .btn-current:hover{ filter:brightness(0.96); }
+  .btn-current:disabled{ background:transparent; border:1px solid var(--border); color:var(--ink-faint); cursor:default; }
+  .btn-current:focus-visible{ outline:2px solid var(--oficina-color); outline-offset:2px; }
+
+  .status-legend{ display:flex; gap:16px; flex-wrap:wrap; }
+  .legend-item{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-soft); font-family:var(--font-mono); }
+  .legend-item::before{ content:''; width:8px; height:8px; border-radius:50%; background:var(--dot); flex-shrink:0; }
+
+  /* ---------------- Semana lado a lado ---------------- */
+  .week-grid{
+    display:grid;
+    grid-template-columns:repeat(7, minmax(150px, 1fr));
+    gap:10px;
+    align-items:stretch;
+    overflow-x:auto;
+    padding-bottom:6px;
+    opacity:1;
+    transition:opacity .12s ease;
+  }
+  .week-grid.fading{ opacity:0; }
+
+  .day-section{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    min-height:180px;
+  }
+  .day-section.is-today{ border-color:var(--oficina-color); }
+
+  .day-head{
+    display:flex;
+    flex-direction:column;
+    gap:7px;
+    padding:11px 12px 10px;
+    background:var(--surface-muted);
+    border-bottom:1px solid var(--border-soft);
+  }
+  .day-section.is-today .day-head{ background:var(--highlight-soft); }
+  .day-title{ display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+  .day-name{ font-family:var(--font-display); font-size:11.5px; font-weight:600; letter-spacing:0.02em; text-transform:uppercase; }
+  .day-section.is-today .day-name{ color:var(--highlight); }
+  .day-date{ font-family:var(--font-mono); font-size:11.5px; color:var(--ink-faint); }
+
+  .day-load{ display:flex; flex-direction:column; gap:4px; }
+  .day-hh{ font-family:var(--font-mono); font-size:10.5px; color:var(--ink-soft); }
+  .day-hh b{ color:var(--ink); font-weight:600; }
+  .load-bar-row{ display:flex; align-items:center; gap:6px; }
+  .load-bar-track{ flex:1; height:4px; border-radius:3px; background:var(--border-soft); overflow:hidden; }
+  .load-bar-fill{ height:100%; border-radius:3px; }
+  .load-pct{ font-family:var(--font-mono); font-size:10.5px; font-weight:600; min-width:30px; text-align:right; }
+  .load-na{ font-family:var(--font-mono); font-size:10px; color:var(--ink-faint); }
+
+  .day-rows{ flex:1; display:flex; flex-direction:column; }
+
+  .os-row{
+    position:relative;
+    display:flex;
+    flex-direction:column;
+    gap:5px;
+    padding:9px 10px 9px 16px;
+    border-bottom:1px solid var(--border-soft);
+  }
+  .os-row.has-details{ cursor:pointer; }
+  .day-rows .os-row:last-child{ border-bottom:none; }
+  .os-row::before{
+    content:'';
+    position:absolute;
+    left:5px; top:8px; bottom:8px;
+    width:4px;
+    border-radius:2px;
+    background:var(--status-color);
+  }
+
+  .os-info{ display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .os-code{ font-family:var(--font-mono); font-size:9.5px; color:var(--ink-faint); }
+  .os-title{ font-size:12px; line-height:1.32; color:var(--ink); }
+
+  .os-meta{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .os-hh{ font-family:var(--font-mono); font-size:11px; color:var(--ink); white-space:nowrap; }
+  .os-exec{ font-family:var(--font-mono); font-size:11px; color:var(--ink-soft); white-space:nowrap; }
+  .os-resources{ display:flex; gap:4px; flex-wrap:wrap; }
+  .os-detail{
+    display:none;
+    margin-top:2px;
+    padding:8px 10px;
+    border-radius:8px;
+    background:var(--surface-muted);
+    border:1px solid var(--border-soft);
+    font-size:11px;
+    line-height:1.45;
+    color:var(--ink-soft);
+  }
+  .os-row.is-open .os-detail{ display:block; }
+  .resource-tag{
+    font-size:10px;
+    font-family:var(--font-body);
+    font-weight:500;
+    color:var(--ink-soft);
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:999px;
+    padding:2px 8px;
+    white-space:nowrap;
+  }
+  .resource-empty{ font-family:var(--font-mono); font-size:11px; color:var(--ink-faint); }
+
+  .day-empty{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    padding:16px 10px;
+    font-size:10.5px;
+    color:var(--ink-faint);
+  }
+
+  /* ---------------- Fim de semana em destaque ---------------- */
+  .day-section.is-weekend{
+    background:var(--weekend-bg);
+    border-color:var(--weekend-border);
+    --st-pending:#A7AEBA;
+    --st-progress:#E2A23E;
+    --st-done:#4FAE73;
+    --load-ok:#4FAE73;
+    --load-warn:#E2A23E;
+    --load-over:#D9605A;
+  }
+  .day-section.is-weekend .day-head{ background:var(--weekend-bg-head); border-bottom-color:var(--weekend-border); }
+  .day-section.is-weekend .day-name{ color:var(--weekend-ink); }
+  .day-section.is-weekend .day-date{ color:var(--weekend-ink-soft); }
+  .day-section.is-weekend .day-hh{ color:var(--weekend-ink-soft); }
+  .day-section.is-weekend .day-hh b{ color:var(--weekend-ink); }
+  .day-section.is-weekend .load-na{ color:var(--weekend-ink-soft); }
+  .day-section.is-weekend .load-bar-track{ background:var(--weekend-border); }
+  .day-section.is-weekend .os-row{ border-bottom-color:var(--weekend-border); }
+  .day-section.is-weekend .os-code{ color:var(--weekend-ink-faint); }
+  .day-section.is-weekend .os-title{ color:var(--weekend-ink); }
+  .day-section.is-weekend .os-hh{ color:var(--weekend-ink); }
+  .day-section.is-weekend .os-exec{ color:var(--weekend-ink-soft); }
+  .day-section.is-weekend .os-detail{
+    background:var(--weekend-bg-head);
+    border-color:var(--weekend-border);
+    color:var(--weekend-ink-soft);
+  }
+  .day-section.is-weekend .resource-tag{ background:var(--weekend-bg-head); border-color:var(--weekend-border); color:var(--weekend-ink-soft); }
+  .day-section.is-weekend .resource-empty{ color:var(--weekend-ink-faint); }
+  .day-section.is-weekend .day-empty{ color:var(--weekend-ink-faint); }
+  .day-section.is-weekend.is-today{ border-color:var(--oficina-color); }
+  .day-section.is-weekend.is-today .day-head{ background:var(--weekend-bg-head); border-bottom-color:var(--oficina-color); }
+  .day-section.is-weekend.is-today .day-name{ color:var(--highlight); }
+
+  @media (max-width: 900px){
+    .app{ flex-direction:column; }
+    .sidebar{
+      width:100%;
+      flex-direction:row;
+      overflow-x:auto;
+      border-right:none;
+      border-bottom:1px solid var(--border);
+      padding:14px 12px;
+      gap:6px;
+    }
+    .sidebar-head{ display:none; }
+    .oficina-item{
+      flex-shrink:0;
+      border-left:none;
+      border-bottom:3px solid transparent;
+      white-space:nowrap;
+    }
+    .oficina-item.active{ border-bottom-color:var(--item-color); }
+    .subteam-list{
+      flex-direction:row;
+      margin:0 0 0 4px;
+      padding-left:8px;
+      border-left:1px solid var(--border-soft);
+    }
+    .main{ padding:20px 16px 40px; }
+    .week-grid{ grid-template-columns:none; grid-auto-flow:column; grid-auto-columns:74%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-head">Oficinas</div>
+  </nav>
+
+  <div class="main">
+
+    <header class="topbar">
+      <div class="topbar-left">
+        <button class="btn-back" id="backToDashboardBtn" type="button">← Voltar ao dashboard</button>
+        <div class="brand">
+          <div class="brand-mark" id="brandMark"></div>
+          <div>
+            <h1 id="oficinaTitle"></h1>
+            <p id="oficinaSubtitle"></p>
+          </div>
+        </div>
+      </div>
+      <div class="week-summary">
+        <div class="summary-total" id="summaryTotal"></div>
+        <div class="summary-load" id="summaryLoad"></div>
+      </div>
+    </header>
+
+    <div class="controls">
+      <div class="week-nav">
+        <button class="nav-arrow" id="prevWeek" aria-label="Semana anterior">‹</button>
+        <div class="week-range">
+          <span id="weekRangeText"></span>
+          <span class="week-tag" id="weekTag"></span>
+        </div>
+        <button class="nav-arrow" id="nextWeek" aria-label="Próxima semana">›</button>
+      </div>
+      <button class="btn-current" id="currentWeekBtn">Semana atual</button>
+      <div class="status-legend">
+        <span class="legend-item" style="--dot:var(--st-pending)">Não executada</span>
+        <span class="legend-item" style="--dot:var(--st-progress)">Em andamento</span>
+        <span class="legend-item" style="--dot:var(--st-done)">Concluída</span>
+      </div>
+    </div>
+
+    <div class="week-grid" id="weekList"></div>
+
+  </div>
+</div>
+
+<script src="./config.js"></script>
+<script>
+(function(){
+
+  /* ---------------- Oficinas ---------------- */
+  const DEFAULT_JOURNEY = { days:[1,2,3,4,5], hours:8.8 }; // seg. a sex.
+
+  const OFICINAS = [
+    { id:'civil',     label:'Civil',                 size:6,  accent:'#8C7A5E' },
+    { id:'elet',      label:'Elétrica',               size:5,  accent:'#2F4D7A' },
+    { id:'refrig',    label:'Refrigeração',           size:7,  accent:'#2E8B9E' },
+    { id:'pintura',   label:'Pintura',                size:2,  accent:'#A8552D' },
+    { id:'util',      label:'Utilidades',             accent:'#3C6E8F',
+      subteams:[
+        { id:'t1',  label:'T1',  size:1, journey:{ days:[1,2,3,4,5,6], hours:7.33 } },
+        { id:'t2',  label:'T2',  size:1, journey:{ days:[1,2,3,4,5,6], hours:7.33 } },
+        { id:'t2a', label:'T2A', size:2, journey:{ days:[1,2,3,4,5],   hours:8.8  } },
+        { id:'t3',  label:'T3',  size:2, journey:{ days:[1,2,3,4,5,6], hours:7.33 } },
+      ]
+    },
+    { id:'spci',      label:'SPCI',                   size:5,  accent:'#C1473F' },
+    { id:'limpTec',   label:'Limpeza Técnica',        size:5,  accent:'#6B7B93' },
+    { id:'jardim',    label:'Jardinagem',              size:4,  accent:'#4F7942' },
+    { id:'limpConv',  label:'Limpeza Convencional',   accent:'#9B6E9E',
+      subteams:[
+        { id:'t1', label:'T1',         size:8  },
+        { id:'t2', label:'T2 / T2E',   size:22 },
+        { id:'t3', label:'T3 / T3E',   size:21 },
+      ]
+    },
+  ];
+
+  const STATUS = {
+    pending:  { label:'Não executada', color:'var(--st-pending)',  bg:'var(--st-pending-bg)'  },
+    progress: { label:'Em andamento',  color:'var(--st-progress)', bg:'var(--st-progress-bg)' },
+    done:     { label:'Concluída',     color:'var(--st-done)',     bg:'var(--st-done-bg)'     },
+  };
+
+  const WEEKDAY_ABBR = ['DOM','SEG','TER','QUA','QUI','SEX','SÁB'];
+  const MONTHS_FULL = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  const MONTHS_ABBR = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+
+  /* ---------------- Dados de exemplo por oficina ---------------- */
+  // o = offset em dias relativos a hoje | hh = horas estimadas da OS | ex = executantes alocados
+  const RAW = {
+    civil:[
+      {o:-16, n:'0401', t:'Reparo de piso industrial – Setor 2',        hh:6, ex:3, st:'done',    r:['Escada']},
+      {o:-13, n:'0402', t:'Reforço de fundação – Pilar 7',               hh:8, ex:4, st:'done',    r:[]},
+      {o:-10, n:'0403', t:'Inspeção estrutural – Galpão B',              hh:4, ex:2, st:'done',    r:['PEMT Tesoura']},
+      {o:-7,  n:'0404', t:'Recomposição de alvenaria – Bloco C',         hh:5, ex:3, st:'done',    r:[]},
+      {o:-3,  n:'0405', t:'Vedação de telhado – Bloco A',                hh:6, ex:2, st:'done',    r:['Escada']},
+      {o:-1,  n:'0406', t:'Reparo de calçada externa',                  hh:4, ex:3, st:'done',    r:[]},
+      {o:0,   n:'0407', t:'Construção de base para equipamento',        hh:8, ex:4, st:'progress', r:['PEMT Articulada']},
+      {o:3,   n:'0408', t:'Inspeção de trincas – Galpão A',              hh:6, ex:3, st:'pending',  r:[]},
+      {o:7,   n:'0409', t:'Reparo de muro de contenção',                hh:5, ex:2, st:'pending',  r:['Escada']},
+      {o:12,  n:'0410', t:'Nivelamento de piso – Almoxarifado',          hh:8, ex:4, st:'pending',  r:[]},
+    ],
+    elet:[
+      {o:-15, n:'0421', t:'Manutenção preventiva – Painel elétrico',     hh:3, ex:2, st:'done',    r:[]},
+      {o:-12, n:'0422', t:'Substituição de disjuntor – QGBT 2',          hh:5, ex:2, st:'done',    r:['Escada']},
+      {o:-9,  n:'0423', t:'Revisão de quadro elétrico geral',            hh:4, ex:1, st:'done',    r:[]},
+      {o:-6,  n:'0424', t:'Verificação de aterramento',                  hh:6, ex:3, st:'done',    r:['PEMT Tesoura']},
+      {o:-2,  n:'0425', t:'Troca de cabos – Subestação',                 hh:3, ex:2, st:'done',    r:[]},
+      {o:0,   n:'0426', t:'Calibração de sensores elétricos',            hh:4, ex:2, st:'progress', r:['Escada']},
+      {o:1,   n:'0427', t:'Inspeção termográfica – Painéis',             hh:5, ex:2, st:'pending',  r:[]},
+      {o:4,   n:'0428', t:'Manutenção de iluminação – Pátio',            hh:3, ex:1, st:'pending',  r:[]},
+      {o:8,   n:'0429', t:'Troca de contator – CCM 3',                  hh:6, ex:3, st:'pending',  r:['PEMT Articulada']},
+      {o:13,  n:'0430', t:'Teste de isolamento – Motores',               hh:4, ex:2, st:'pending',  r:[]},
+    ],
+    refrig:[
+      {o:-17, n:'0441', t:'Manutenção de chiller – Unidade 1',           hh:8, ex:3, st:'done',    r:['PEMT Tesoura']},
+      {o:-14, n:'0442', t:'Troca de gás refrigerante – Câmara fria 2',   hh:6, ex:2, st:'done',    r:[]},
+      {o:-11, n:'0443', t:'Limpeza de condensadores',                   hh:5, ex:2, st:'done',    r:['Escada']},
+      {o:-8,  n:'0444', t:'Inspeção de câmara fria – Setor B',           hh:7, ex:3, st:'done',    r:[]},
+      {o:-4,  n:'0445', t:'Manutenção de ar-condicionado – Sala de controle', hh:6, ex:2, st:'done', r:['PEMT Articulada']},
+      {o:0,   n:'0446', t:'Troca de compressor – Unidade 3',             hh:8, ex:4, st:'progress', r:[]},
+      {o:2,   n:'0447', t:'Verificação de termostatos',                  hh:5, ex:2, st:'pending',  r:['Escada']},
+      {o:6,   n:'0448', t:'Manutenção preventiva – Fancoil',             hh:6, ex:3, st:'pending',  r:[]},
+      {o:9,   n:'0449', t:'Reparo de vazamento – Linha de refrigeração', hh:7, ex:3, st:'pending',  r:['PEMT Tesoura']},
+      {o:15,  n:'0450', t:'Calibração de painel de controle – Chiller',  hh:5, ex:2, st:'pending',  r:[]},
+    ],
+    pintura:[
+      {o:-16, n:'0461', t:'Pintura de proteção – Estrutura metálica',    hh:6, ex:2, st:'done',    r:['Escada']},
+      {o:-11, n:'0462', t:'Repintura de piso demarcado – Pátio',         hh:8, ex:2, st:'done',    r:[]},
+      {o:-6,  n:'0463', t:'Pintura de sinalização – Áreas de risco',     hh:5, ex:1, st:'done',    r:['PEMT Tesoura']},
+      {o:-2,  n:'0464', t:'Pintura anticorrosiva – Tubulações',          hh:6, ex:2, st:'done',    r:[]},
+      {o:0,   n:'0465', t:'Pintura de fachada – Bloco D',                hh:4, ex:1, st:'progress', r:['Escada']},
+      {o:3,   n:'0466', t:'Repintura de faixas – Estacionamento',        hh:6, ex:2, st:'pending',  r:[]},
+      {o:7,   n:'0467', t:'Pintura de grades de proteção',               hh:8, ex:2, st:'pending',  r:['PEMT Articulada']},
+      {o:10,  n:'0468', t:'Pintura de tanques – Área externa',           hh:5, ex:1, st:'pending',  r:[]},
+      {o:14,  n:'0469', t:'Pintura de corrimãos – Escadas',              hh:6, ex:2, st:'pending',  r:['Escada']},
+      {o:17,  n:'0470', t:'Pintura de sinalização de piso – Almoxarifado', hh:4, ex:1, st:'pending', r:[]},
+    ],
+    util:{
+      t1:[
+        {o:-15, n:'0601', t:'Verificação de rede de ar comprimido',           hh:4, ex:1, st:'done',    r:[]},
+        {o:-11, n:'0602', t:'Inspeção de caldeira',                          hh:5, ex:1, st:'done',    r:[]},
+        {o:-8,  n:'0603', t:'Leitura de instrumentos – Estação de tratamento', hh:3, ex:1, st:'done',  r:[]},
+        {o:-4,  n:'0604', t:'Ronda de inspeção – Subestação de utilidades',  hh:4, ex:1, st:'done',    r:[]},
+        {o:-1,  n:'0605', t:'Verificação de nível – Reservatório',           hh:3, ex:1, st:'done',    r:[]},
+        {o:0,   n:'0606', t:'Troca de filtro – Compressor 1',                hh:5, ex:1, st:'progress', r:[]},
+        {o:3,   n:'0607', t:'Inspeção de válvulas – Rede de vapor',          hh:4, ex:1, st:'pending',  r:[]},
+        {o:9,   n:'0608', t:'Registro de parâmetros – Torre de refrigeração', hh:3, ex:1, st:'pending', r:[]},
+      ],
+      t2:[
+        {o:-14, n:'0611', t:'Manutenção de bomba de água industrial',        hh:5, ex:1, st:'done',    r:[]},
+        {o:-10, n:'0612', t:'Verificação de pressão – Rede de ar comprimido', hh:4, ex:1, st:'done',   r:[]},
+        {o:-7,  n:'0613', t:'Inspeção de tubulação – Vapor',                 hh:4, ex:1, st:'done',    r:[]},
+        {o:-3,  n:'0614', t:'Troca de óleo – Compressor 2',                  hh:5, ex:1, st:'done',    r:[]},
+        {o:-2,  n:'0615', t:'Calibração de manômetros',                     hh:3, ex:1, st:'done',    r:[]},
+        {o:0,   n:'0616', t:'Ronda de inspeção – Casa de bombas',            hh:4, ex:1, st:'progress', r:[]},
+        {o:4,   n:'0617', t:'Verificação de rede de vapor',                  hh:5, ex:1, st:'pending',  r:[]},
+        {o:10,  n:'0618', t:'Inspeção de reservatório de água',              hh:4, ex:1, st:'pending',  r:[]},
+      ],
+      t2a:[
+        {o:-16, n:'0621', t:'Manutenção preventiva – Compressor principal',  hh:7, ex:2, st:'done',    r:['Escada']},
+        {o:-9,  n:'0622', t:'Reparo de vazamento – Rede de vapor',           hh:6, ex:2, st:'done',    r:[]},
+        {o:-6,  n:'0623', t:'Inspeção de caldeira – Parada programada',      hh:8, ex:2, st:'done',    r:['PEMT Articulada']},
+        {o:-2,  n:'0624', t:'Troca de válvula – Estação de tratamento',      hh:5, ex:2, st:'done',    r:[]},
+        {o:0,   n:'0625', t:'Manutenção de torre de refrigeração',           hh:6, ex:2, st:'progress', r:[]},
+        {o:2,   n:'0626', t:'Manutenção de sistema de ar comprimido – Linha 1', hh:7, ex:2, st:'pending', r:[]},
+        {o:6,   n:'0627', t:'Inspeção de rede de utilidades',                hh:5, ex:2, st:'pending',  r:['Escada']},
+        {o:11,  n:'0628', t:'Manutenção de bomba de água industrial – Revisão geral', hh:8, ex:2, st:'pending', r:[]},
+      ],
+      t3:[
+        {o:-17, n:'0631', t:'Manutenção de sistema de ar comprimido – Linha 2', hh:6, ex:2, st:'done',  r:[]},
+        {o:-12, n:'0632', t:'Inspeção de reservatório de água',              hh:5, ex:2, st:'done',    r:[]},
+        {o:-5,  n:'0633', t:'Troca de filtro – Estação de tratamento',       hh:6, ex:2, st:'done',    r:[]},
+        {o:-1,  n:'0634', t:'Verificação de rede de utilidades',             hh:5, ex:2, st:'done',    r:['Escada']},
+        {o:0,   n:'0635', t:'Manutenção de torre de refrigeração – Unidade 2', hh:7, ex:2, st:'progress', r:[]},
+        {o:3,   n:'0636', t:'Inspeção de caldeira',                         hh:6, ex:2, st:'pending',  r:[]},
+        {o:7,   n:'0637', t:'Manutenção de compressor reserva',              hh:5, ex:2, st:'pending',  r:[]},
+        {o:13,  n:'0638', t:'Troca de válvula – Rede de vapor',              hh:6, ex:2, st:'pending',  r:['Escada']},
+      ],
+    },
+    spci:[
+      {o:-16, n:'0501', t:'Inspeção de extintores – Bloco A',            hh:3, ex:2, st:'done',    r:[]},
+      {o:-13, n:'0502', t:'Teste de sprinklers – Galpão B',              hh:4, ex:2, st:'done',    r:['Escada']},
+      {o:-9,  n:'0503', t:'Verificação de hidrantes',                    hh:2, ex:1, st:'done',    r:[]},
+      {o:-6,  n:'0504', t:'Recarga de extintores',                       hh:3, ex:2, st:'done',    r:[]},
+      {o:-2,  n:'0505', t:'Teste de alarme de incêndio',                 hh:4, ex:2, st:'done',    r:['Escada']},
+      {o:0,   n:'0506', t:'Inspeção de mangueiras de incêndio',          hh:3, ex:2, st:'progress', r:[]},
+      {o:1,   n:'0507', t:'Manutenção de bomba de incêndio',             hh:2, ex:1, st:'pending',  r:[]},
+      {o:4,   n:'0508', t:'Verificação de sinalização de emergência',    hh:4, ex:2, st:'pending',  r:['Escada']},
+      {o:8,   n:'0509', t:'Teste de central de alarme',                  hh:3, ex:2, st:'pending',  r:[]},
+      {o:11,  n:'0510', t:'Inspeção de saídas de emergência',            hh:2, ex:1, st:'pending',  r:[]},
+    ],
+    limpTec:[
+      {o:-17, n:'0521', t:'Limpeza técnica – Painéis elétricos',         hh:4, ex:2, st:'done',    r:[]},
+      {o:-14, n:'0522', t:'Limpeza de exaustores industriais',           hh:5, ex:2, st:'done',    r:['Escada']},
+      {o:-10, n:'0523', t:'Limpeza de área classificada',                hh:4, ex:2, st:'done',    r:[]},
+      {o:-7,  n:'0524', t:'Limpeza técnica – Sala de máquinas',          hh:6, ex:3, st:'done',    r:['PEMT Tesoura']},
+      {o:-3,  n:'0525', t:'Limpeza de dutos de ventilação',              hh:4, ex:2, st:'done',    r:[]},
+      {o:0,   n:'0526', t:'Limpeza técnica – Subestação',                hh:5, ex:2, st:'progress', r:[]},
+      {o:2,   n:'0527', t:'Limpeza de filtros industriais',              hh:4, ex:2, st:'pending',  r:['Escada']},
+      {o:5,   n:'0528', t:'Limpeza técnica – Câmaras frias',             hh:6, ex:3, st:'pending',  r:[]},
+      {o:9,   n:'0529', t:'Limpeza de telhado industrial',               hh:4, ex:2, st:'pending',  r:[]},
+      {o:14,  n:'0530', t:'Limpeza técnica – Equipamentos de processo',  hh:5, ex:2, st:'pending',  r:['PEMT Tesoura']},
+    ],
+    jardim:[
+      {o:-16, n:'0541', t:'Poda de árvores – Área externa',              hh:4, ex:2, st:'done',    r:['Escada']},
+      {o:-12, n:'0542', t:'Corte de grama – Pátio principal',            hh:3, ex:2, st:'done',    r:[]},
+      {o:-8,  n:'0543', t:'Manutenção de jardim – Bloco administrativo', hh:5, ex:3, st:'done',    r:[]},
+      {o:-5,  n:'0544', t:'Irrigação – Canteiros externos',              hh:4, ex:2, st:'done',    r:[]},
+      {o:-1,  n:'0545', t:'Roçada – Área de fundo',                      hh:3, ex:1, st:'done',    r:[]},
+      {o:0,   n:'0546', t:'Plantio de mudas – Entrada principal',        hh:4, ex:2, st:'progress', r:[]},
+      {o:1,   n:'0547', t:'Limpeza de canteiros',                        hh:5, ex:3, st:'pending',  r:['Escada']},
+      {o:4,   n:'0548', t:'Manutenção de paisagismo – Estacionamento',   hh:3, ex:1, st:'pending',  r:[]},
+      {o:7,   n:'0549', t:'Poda de cerca viva',                          hh:4, ex:2, st:'pending',  r:[]},
+      {o:11,  n:'0550', t:'Controle de pragas – Jardim',                 hh:5, ex:3, st:'pending',  r:[]},
+    ],
+    limpConv:{
+      t1:[
+        {o:-16, n:'0641', t:'Limpeza de banheiros – Bloco A',                hh:4, ex:4, st:'done',    r:[]},
+        {o:-12, n:'0642', t:'Limpeza de escritórios administrativos',        hh:3, ex:3, st:'done',    r:[]},
+        {o:-9,  n:'0643', t:'Varrição de áreas externas',                   hh:4, ex:5, st:'done',    r:[]},
+        {o:-5,  n:'0644', t:'Limpeza de refeitório',                        hh:3, ex:4, st:'done',    r:[]},
+        {o:-2,  n:'0645', t:'Limpeza de vidros – Bloco B',                  hh:4, ex:3, st:'done',    r:['Escada']},
+        {o:0,   n:'0646', t:'Limpeza de corredores – Bloco C',               hh:3, ex:4, st:'progress', r:[]},
+        {o:3,   n:'0647', t:'Limpeza de vestiários',                        hh:2, ex:3, st:'pending',  r:[]},
+        {o:8,   n:'0648', t:'Limpeza de áreas comuns',                      hh:4, ex:5, st:'pending',  r:[]},
+      ],
+      t2:[
+        {o:-15, n:'0651', t:'Limpeza geral – Bloco administrativo',          hh:3, ex:10, st:'done',    r:[]},
+        {o:-11, n:'0652', t:'Limpeza de pátio e estacionamento',             hh:4, ex:12, st:'done',    r:[]},
+        {o:-7,  n:'0653', t:'Limpeza de almoxarifado',                      hh:3, ex:8,  st:'done',    r:[]},
+        {o:-3,  n:'0654', t:'Limpeza de galpão principal',                  hh:4, ex:14, st:'done',    r:[]},
+        {o:-1,  n:'0655', t:'Limpeza de escritórios – Turno intermediário',  hh:3, ex:9,  st:'done',    r:[]},
+        {o:0,   n:'0656', t:'Limpeza de refeitório – Turno intermediário',   hh:4, ex:11, st:'progress', r:[]},
+        {o:4,   n:'0657', t:'Limpeza de banheiros – Bloco central',          hh:3, ex:10, st:'pending',  r:[]},
+        {o:10,  n:'0658', t:'Limpeza de áreas comuns – Turno intermediário', hh:4, ex:12, st:'pending',  r:[]},
+      ],
+      t3:[
+        {o:-17, n:'0661', t:'Limpeza pós-obra – Galpão D',                  hh:4, ex:9,  st:'done',    r:['Escada']},
+        {o:-13, n:'0662', t:'Limpeza de vidros – Fachada principal',         hh:5, ex:8,  st:'done',    r:['PEMT Tesoura']},
+        {o:-10, n:'0663', t:'Limpeza de área externa – Turno final',         hh:3, ex:10, st:'done',    r:[]},
+        {o:-6,  n:'0664', t:'Limpeza de corredores – Turno final',           hh:3, ex:9,  st:'done',    r:[]},
+        {o:-2,  n:'0665', t:'Limpeza de banheiros – Turno final',            hh:4, ex:11, st:'done',    r:[]},
+        {o:0,   n:'0666', t:'Limpeza de refeitório – Turno final',           hh:3, ex:9,  st:'progress', r:[]},
+        {o:5,   n:'0667', t:'Limpeza de áreas comuns – Turno final',         hh:4, ex:10, st:'pending',  r:[]},
+        {o:12,  n:'0668', t:'Limpeza de galpão secundário',                  hh:3, ex:8,  st:'pending',  r:[]},
+      ],
+    },
+  };
+
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const yearForCode = today.getFullYear();
+
+  function addDays(date, n){ const d = new Date(date); d.setDate(d.getDate()+n); return d; }
+
+  function buildOrder(o){
+    return {
+      date: addDays(today, o.o),
+      code: 'OS-'+yearForCode+'-'+o.n,
+      title: o.t,
+      hh: o.hh,
+      exec: o.ex,
+      status: o.st,
+      resources: o.r,
+    };
+  }
+
+  const cfg = window.__DASHBOARD_CONFIG__ ?? { dataEndpoint:"", transport:"auto", jsonpCallbackParam:"callback" };
+  const remoteEndpoint = String(cfg.dataEndpoint || '').trim();
+  const remoteCache = new Map();
+  let DATA = {};
+
+  function makeEmptyData(){
+    const out = {};
+    OFICINAS.forEach(of=>{
+      if(of.subteams){
+        out[of.id] = {};
+        of.subteams.forEach(st=>{ out[of.id][st.id] = []; });
+      } else {
+        out[of.id] = [];
+      }
+    });
+    return out;
+  }
+
+  function normalizeOrderFromApi(o){
+    const dateIso = String(o?.date ?? '').slice(0, 10);
+    const date = dateIso ? new Date(dateIso + 'T00:00:00') : new Date();
+    date.setHours(0,0,0,0);
+    return {
+      date,
+      code: String(o?.code ?? '').trim() || 'OS',
+      title: String(o?.title ?? '').trim() || 'Ordem de Serviço',
+      description: String(o?.description ?? '').trim(),
+      hh: Number(o?.hh ?? 0) || 0,
+      exec: Number(o?.exec ?? 1) || 1,
+      status: String(o?.status ?? 'pending'),
+      resources: Array.isArray(o?.resources) ? o.resources.map(r=>String(r ?? '').trim()).filter(Boolean) : [],
+    };
+  }
+
+  function buildMockData(){
+    const out = {};
+    OFICINAS.forEach(of=>{
+      if(of.subteams){
+        out[of.id] = {};
+        of.subteams.forEach(st=>{ out[of.id][st.id] = (RAW[of.id]?.[st.id] || []).map(buildOrder); });
+      } else {
+        out[of.id] = (RAW[of.id] || []).map(buildOrder);
+      }
+    });
+    return out;
+  }
+
+  DATA = buildMockData();
+
+  function fetchJsonp(urlString){
+    return new Promise((resolve, reject)=>{
+      const cbParam = String(cfg.jsonpCallbackParam || 'callback');
+      const cbName = '__jsonp_cb_' + Date.now() + '_' + Math.random().toString(16).slice(2);
+      const url = new URL(urlString);
+      url.searchParams.set(cbParam, cbName);
+
+      let done = false;
+      const cleanup = ()=>{
+        if(done) return;
+        done = true;
+        try{ delete window[cbName]; } catch {}
+        if(script && script.parentNode) script.parentNode.removeChild(script);
+        if(timer) clearTimeout(timer);
+      };
+
+      window[cbName] = (payload)=>{
+        cleanup();
+        resolve(payload);
+      };
+
+      const script = document.createElement('script');
+      script.src = url.toString();
+      script.async = true;
+      script.onerror = ()=>{
+        cleanup();
+        reject(new Error('Falha no JSONP'));
+      };
+
+      const timer = setTimeout(()=>{
+        cleanup();
+        reject(new Error('Timeout no JSONP'));
+      }, 20000);
+
+      document.head.appendChild(script);
+    });
+  }
+
+  async function fetchWeekData(monday){
+    if(!remoteEndpoint) return null;
+    const key = monday.toISOString().slice(0, 10);
+    if(remoteCache.has(key)) return remoteCache.get(key);
+
+    const url = new URL(remoteEndpoint);
+    url.searchParams.set('view', 'prog_sem');
+    url.searchParams.set('weekStart', key);
+
+    let payload;
+    const transport = String(cfg.transport || 'auto').toLowerCase();
+    if(transport === 'jsonp') payload = await fetchJsonp(url.toString());
+    else if(transport === 'fetch') {
+      const res = await fetch(url.toString(), { method:'GET', mode:'cors', cache:'no-store' });
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      payload = await res.json();
+    } else {
+      try{
+        const res = await fetch(url.toString(), { method:'GET', mode:'cors', cache:'no-store' });
+        if(!res.ok) throw new Error('HTTP ' + res.status);
+        payload = await res.json();
+      } catch {
+        payload = await fetchJsonp(url.toString());
+      }
+    }
+
+    remoteCache.set(key, payload);
+    return payload;
+  }
+
+  async function ensureWeekData(monday){
+    if(!remoteEndpoint) return;
+    const key = monday.toISOString().slice(0, 10);
+    const payload = await fetchWeekData(monday);
+    if(!payload || typeof payload !== 'object' || !payload.data) return;
+
+    const next = makeEmptyData();
+    OFICINAS.forEach(of=>{
+      if(of.subteams){
+        of.subteams.forEach(st=>{
+          const raw = payload.data?.[of.id]?.[st.id];
+          next[of.id][st.id] = Array.isArray(raw) ? raw.map(normalizeOrderFromApi) : [];
+        });
+      } else {
+        const raw = payload.data?.[of.id];
+        next[of.id] = Array.isArray(raw) ? raw.map(normalizeOrderFromApi) : [];
+      }
+    });
+
+    DATA = next;
+    weekTagEl.textContent = weekOffset===0 ? 'SEMANA ATUAL' : (weekOffset<0 ? 'SEMANA ANTERIOR' : 'PRÓXIMA SEMANA');
+    weekTagEl.dataset.week = key;
+  }
+
+  function getMonday(date){
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    return addDays(d, diff);
+  }
+  function sameDay(a,b){ return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate(); }
+  function dateKey(d){ return d.toDateString(); }
+  function isWorkingDay(d, journey){ return journey.days.includes(d.getDay()); }
+  function isCalendarWeekend(d){ const day = d.getDay(); return day===0 || day===6; }
+  function journeyDaysLabel(days){
+    const key = days.slice().sort((a,b)=>a-b).join(',');
+    if(key === '1,2,3,4,5') return 'seg. a sex.';
+    if(key === '1,2,3,4,5,6') return 'seg. a sáb.';
+    return 'dias variáveis';
+  }
+  function pad2(n){ return n<10 ? '0'+n : ''+n; }
+  function fmt1(n){ return n.toFixed(1).replace('.', ','); }
+  function fmtHH(n){ return (Number.isInteger(n) ? n : n.toFixed(1).replace('.', ',')) + 'h'; }
+
+  /* ---------------- Estado ---------------- */
+  let currentOficina = OFICINAS[0].id;
+  let currentSubteam = null;
+  let weekOffset = 0;
+
+  function getActiveUnit(){
+    const of = OFICINAS.find(o=>o.id===currentOficina);
+    if(of.subteams){
+      const st = of.subteams.find(s=>s.id===currentSubteam) || of.subteams[0];
+      return { oficina:of, subteam:st, size:st.size, journey: st.journey || DEFAULT_JOURNEY, orders: DATA[of.id][st.id] };
+    }
+    return { oficina:of, subteam:null, size:of.size, journey: of.journey || DEFAULT_JOURNEY, orders: DATA[of.id] };
+  }
+
+  /* ---------------- Sidebar ---------------- */
+  const sidebarEl = document.getElementById('sidebar');
+
+  function refreshSidebarActive(){
+    document.querySelectorAll('.oficina-item').forEach(el=>{
+      el.classList.toggle('active', el.dataset.oficina===currentOficina);
+    });
+    document.querySelectorAll('.subteam-item').forEach(el=>{
+      el.classList.toggle('active', el.dataset.oficina===currentOficina && el.dataset.subteam===currentSubteam);
+    });
+  }
+
+  OFICINAS.forEach(of=>{
+    const totalSize = of.subteams ? of.subteams.reduce((s,st)=>s+st.size,0) : of.size;
+
+    const btn = document.createElement('button');
+    btn.className = 'oficina-item';
+    btn.style.setProperty('--item-color', of.accent);
+    btn.dataset.oficina = of.id;
+    btn.innerHTML = '<span class="o-name">'+of.label+'</span><span class="o-size">'+totalSize+' colaboradores</span>';
+    btn.addEventListener('click', ()=>{
+      currentOficina = of.id;
+      currentSubteam = of.subteams ? of.subteams[0].id : null;
+      refreshSidebarActive();
+      render();
+    });
+    sidebarEl.appendChild(btn);
+
+    if(of.subteams){
+      const subWrap = document.createElement('div');
+      subWrap.className = 'subteam-list';
+      of.subteams.forEach(st=>{
+        const sbtn = document.createElement('button');
+        sbtn.className = 'subteam-item';
+        sbtn.style.setProperty('--item-color', of.accent);
+        sbtn.dataset.oficina = of.id;
+        sbtn.dataset.subteam = st.id;
+        sbtn.textContent = st.label;
+        sbtn.addEventListener('click', ()=>{
+          currentOficina = of.id;
+          currentSubteam = st.id;
+          refreshSidebarActive();
+          render();
+        });
+        subWrap.appendChild(sbtn);
+      });
+      sidebarEl.appendChild(subWrap);
+    }
+  });
+
+  refreshSidebarActive();
+
+  /* ---------------- Elementos ---------------- */
+  const brandMarkEl = document.getElementById('brandMark');
+  const oficinaTitleEl = document.getElementById('oficinaTitle');
+  const oficinaSubtitleEl = document.getElementById('oficinaSubtitle');
+  const summaryTotalEl = document.getElementById('summaryTotal');
+  const summaryLoadEl = document.getElementById('summaryLoad');
+  const weekRangeTextEl = document.getElementById('weekRangeText');
+  const weekTagEl = document.getElementById('weekTag');
+  const currentWeekBtn = document.getElementById('currentWeekBtn');
+  const weekListEl = document.getElementById('weekList');
+  const backToDashboardBtn = document.getElementById('backToDashboardBtn');
+
+  function formatRange(monday, sunday){
+    const d1 = monday.getDate(), d2 = sunday.getDate();
+    const m1 = monday.getMonth(), m2 = sunday.getMonth();
+    const y1 = monday.getFullYear(), y2 = sunday.getFullYear();
+    if(y1 !== y2) return d1+' de '+MONTHS_ABBR[m1]+' de '+y1+' – '+d2+' de '+MONTHS_ABBR[m2]+' de '+y2;
+    if(m1 !== m2) return d1+' '+MONTHS_ABBR[m1]+' – '+d2+' '+MONTHS_ABBR[m2]+' de '+y1;
+    return d1+' – '+d2+' de '+MONTHS_FULL[m1]+' de '+y1;
+  }
+
+  function loadColor(pct){
+    if(pct > 100) return 'var(--load-over)';
+    if(pct >= 80) return 'var(--load-warn)';
+    return 'var(--load-ok)';
+  }
+
+  function goBackToDashboard(){
+    const dashboardUrl = './index.html#/geral';
+    try{
+      const referrer = document.referrer ? new URL(document.referrer) : null;
+      const fromDashboard = referrer && referrer.origin === location.origin && /index\.html/i.test(referrer.pathname);
+      if(fromDashboard && window.history.length > 1){
+        window.history.back();
+        return;
+      }
+    } catch {}
+    window.location.href = dashboardUrl;
+  }
+
+  async function render(){
+    const monday = addDays(getMonday(today), weekOffset*7);
+    const sunday = addDays(monday, 6);
+    const days = Array.from({length:7}, (_,i)=>addDays(monday,i));
+
+    if(remoteEndpoint){
+      weekListEl.classList.add('fading');
+      try { await ensureWeekData(monday); } catch {}
+    }
+
+    const unit = getActiveUnit();
+    const oficina = unit.oficina;
+    document.documentElement.style.setProperty('--oficina-color', oficina.accent);
+
+    brandMarkEl.textContent = unit.subteam ? unit.subteam.label.toUpperCase() : oficina.label.slice(0,2).toUpperCase();
+    oficinaTitleEl.textContent = oficina.label;
+    oficinaSubtitleEl.textContent = (unit.subteam ? unit.subteam.label+' · ' : '') +
+      unit.size+' '+(unit.size===1 ? 'colaborador' : 'colaboradores')+' · jornada de '+
+      fmt1(unit.journey.hours)+'h/dia ('+journeyDaysLabel(unit.journey.days)+')';
+
+    weekRangeTextEl.textContent = formatRange(monday, sunday);
+    weekTagEl.textContent = weekOffset===0 ? 'SEMANA ATUAL' : (weekOffset<0 ? 'SEMANA ANTERIOR' : 'PRÓXIMA SEMANA');
+    currentWeekBtn.disabled = weekOffset===0;
+
+    const ordersByDay = {};
+    days.forEach(d=> ordersByDay[dateKey(d)] = []);
+    unit.orders.forEach(o=>{
+      const key = dateKey(o.date);
+      if(key in ordersByDay) ordersByDay[key].push(o);
+    });
+
+    let weekHH = 0, weekCapacity = 0;
+    days.forEach(d=>{
+      const dayOrders = ordersByDay[dateKey(d)];
+      const dayHH = dayOrders.reduce((sum,o)=> sum + o.hh*o.exec, 0);
+      weekHH += dayHH;
+      if(isWorkingDay(d, unit.journey)) weekCapacity += unit.size * unit.journey.hours;
+    });
+    const weekPct = weekCapacity > 0 ? Math.round(weekHH/weekCapacity*100) : 0;
+
+    summaryTotalEl.innerHTML = '<b>'+fmt1(weekHH)+' HH</b> programadas na semana';
+    summaryLoadEl.textContent = weekCapacity > 0 ? 'Carga média: '+weekPct+'% da capacidade ('+fmt1(weekCapacity)+'h)' : '—';
+
+    weekListEl.classList.add('fading');
+
+    setTimeout(()=>{
+      weekListEl.innerHTML = '';
+
+      days.forEach(d=>{
+        const isToday = sameDay(d, today);
+        const working = isWorkingDay(d, unit.journey);
+        const weekendCal = isCalendarWeekend(d);
+        const dayOrders = ordersByDay[dateKey(d)].slice().sort((a,b)=> a.code.localeCompare(b.code));
+        const dayHH = dayOrders.reduce((sum,o)=> sum + o.hh*o.exec, 0);
+        const capacity = working ? unit.size * unit.journey.hours : 0;
+        const pct = capacity > 0 ? Math.round(dayHH/capacity*100) : null;
+
+        const section = document.createElement('section');
+        section.className = 'day-section' + (isToday ? ' is-today' : '') + (weekendCal ? ' is-weekend' : '');
+
+        const head = document.createElement('div');
+        head.className = 'day-head';
+
+        const titleWrap = document.createElement('div');
+        titleWrap.className = 'day-title';
+        titleWrap.innerHTML = '<span class="day-name">'+WEEKDAY_ABBR[d.getDay()]+'</span>'+
+          '<span class="day-date">'+pad2(d.getDate())+'/'+pad2(d.getMonth()+1)+'</span>';
+        head.appendChild(titleWrap);
+
+        const loadWrap = document.createElement('div');
+        loadWrap.className = 'day-load';
+        if(pct === null){
+          loadWrap.innerHTML = '<span class="day-hh"><b>'+fmt1(dayHH)+' HH</b></span>'+
+            '<span class="load-na">'+(dayHH>0 ? 'fora da jornada' : 'sem expediente')+'</span>';
+        } else {
+          const color = loadColor(pct);
+          loadWrap.innerHTML =
+            '<span class="day-hh"><b>'+fmt1(dayHH)+' HH</b> / '+fmt1(capacity)+'h</span>'+
+            '<div class="load-bar-row">'+
+              '<div class="load-bar-track"><div class="load-bar-fill" style="width:'+Math.min(pct,100)+'%; background:'+color+'"></div></div>'+
+              '<span class="load-pct" style="color:'+color+'">'+pct+'%</span>'+
+            '</div>';
+        }
+        head.appendChild(loadWrap);
+        section.appendChild(head);
+
+        const rows = document.createElement('div');
+        rows.className = 'day-rows';
+
+        if(dayOrders.length === 0){
+          const empty = document.createElement('div');
+          empty.className = 'day-empty';
+          empty.textContent = 'Nenhuma OS programada.';
+          rows.appendChild(empty);
+        } else {
+          dayOrders.forEach(o=>{
+            const status = STATUS[o.status];
+            const row = document.createElement('div');
+            row.className = 'os-row' + (o.description ? ' has-details' : '');
+            row.style.setProperty('--status-color', status.color);
+
+            const resourcesHtml = o.resources.length
+              ? o.resources.map(r=>'<span class="resource-tag">'+r+'</span>').join('')
+              : '<span class="resource-empty">—</span>';
+
+            row.innerHTML =
+              '<div class="os-info">'+
+                '<span class="os-code">'+o.code+'</span>'+
+                '<span class="os-title">'+o.title+'</span>'+
+              '</div>'+
+              '<div class="os-meta">'+
+                '<span class="os-hh">'+fmtHH(o.hh)+'</span>'+
+                '<span class="os-exec">'+o.exec+' exec.</span>'+
+                '<div class="os-resources">'+resourcesHtml+'</div>'+
+              '</div>'+
+              (o.description ? '<div class="os-detail">'+o.description+'</div>' : '');
+
+            if(o.description){
+              row.setAttribute('role', 'button');
+              row.setAttribute('tabindex', '0');
+              row.setAttribute('aria-expanded', 'false');
+              const toggleDetails = ()=>{
+                const isOpen = row.classList.toggle('is-open');
+                row.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+              };
+              row.addEventListener('click', toggleDetails);
+              row.addEventListener('keydown', (event)=>{
+                if(event.key === 'Enter' || event.key === ' '){
+                  event.preventDefault();
+                  toggleDetails();
+                }
+              });
+            }
+            rows.appendChild(row);
+          });
+        }
+
+        section.appendChild(rows);
+        weekListEl.appendChild(section);
+      });
+
+      weekListEl.classList.remove('fading');
+    }, 110);
+  }
+
+  document.getElementById('prevWeek').addEventListener('click', ()=>{ weekOffset--; render(); });
+  document.getElementById('nextWeek').addEventListener('click', ()=>{ weekOffset++; render(); });
+  currentWeekBtn.addEventListener('click', ()=>{ weekOffset=0; render(); });
+  if(backToDashboardBtn) backToDashboardBtn.addEventListener('click', goBackToDashboard);
+
+  render().catch(()=>{});
+
+})();
+</script>
+
+</body>
+</html>

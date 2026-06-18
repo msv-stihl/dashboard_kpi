@@ -1390,8 +1390,222 @@ function buildDashboardPayload_() {
   };
 }
 
+function buildProgSemPayload_(e) {
+  const cfg = getConfig_();
+  if (!cfg.SPREADSHEET_ID) throw new Error("SPREADSHEET_ID ausente");
+  const ss = SpreadsheetApp.openById(cfg.SPREADSHEET_ID);
+  const sheet = ss.getSheetByName("prisma_source");
+
+  const parseIsoDate_ = (value) => {
+    if (!value) return null;
+    if (value instanceof Date) {
+      const d = new Date(value);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+    const s = String(value).trim();
+    if (!s) return null;
+    const asIso = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(`${s}T00:00:00`) : new Date(s);
+    if (Number.isNaN(asIso.getTime())) return null;
+    asIso.setHours(0, 0, 0, 0);
+    return asIso;
+  };
+
+  const getMonday_ = (date) => {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const parseHours_ = (value) => {
+    if (value == null || value === "") return 0;
+    if (value instanceof Date) {
+      return Number(value.getHours()) + Number(value.getMinutes() || 0) / 60;
+    }
+    if (typeof value === "number") {
+      if (value > 0 && value <= 1) return value * 24;
+      return value;
+    }
+    const s = String(value).trim().replace(",", ".");
+    const n = Number(s);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const parseExecutantes_ = (value) => {
+    const s = String(value == null ? "" : value).trim();
+    if (!s) return 1;
+    const up = s.toUpperCase();
+    if (up.startsWith("P") || up.startsWith("I")) return 1;
+    const digits = up.replace(/[^\d]/g, "");
+    const n = Number(digits || up);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : 1;
+  };
+
+  const now = new Date();
+  const paramWeekStart = e && e.parameter ? String(e.parameter.weekStart || "").trim() : "";
+  const weekStart = parseIsoDate_(paramWeekStart) || getMonday_(now);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekEnd.getDate() + 6);
+  weekEnd.setHours(0, 0, 0, 0);
+  const weekStartIso = Utilities.formatDate(weekStart, "America/Sao_Paulo", "yyyy-MM-dd");
+  const weekEndIso = Utilities.formatDate(weekEnd, "America/Sao_Paulo", "yyyy-MM-dd");
+  const cache = CacheService.getScriptCache();
+  const cacheKey = `prog_sem:${cfg.SPREADSHEET_ID}:${weekStartIso}`;
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    try { return JSON.parse(cached); } catch {}
+  }
+
+  const mkEmptyData_ = () => ({
+    civil: [],
+    elet: [],
+    refrig: [],
+    pintura: [],
+    util: { t1: [], t2: [], t2a: [], t3: [] },
+    spci: [],
+    limpTec: [],
+    jardim: [],
+    limpConv: { t1: [], t2: [], t3: [] }
+  });
+
+  if (!sheet) {
+    const payload = {
+      updatedAt: new Date().toISOString(),
+      weekStart: weekStartIso,
+      weekEnd: weekEndIso,
+      data: mkEmptyData_(),
+      meta: { error: "Aba prisma_source não encontrada." }
+    };
+    cache.put(cacheKey, JSON.stringify(payload), 120);
+    return payload;
+  }
+
+  const lastRow = sheet.getLastRow();
+  const readColumnCount = 16; // A:P cobre todos os campos usados pela programação.
+  if (lastRow < 2) {
+    const payload = {
+      updatedAt: new Date().toISOString(),
+      weekStart: weekStartIso,
+      weekEnd: weekEndIso,
+      data: mkEmptyData_(),
+      meta: { scanned: 0 }
+    };
+    cache.put(cacheKey, JSON.stringify(payload), 120);
+    return payload;
+  }
+
+  const COL = {
+    numero_os: 0,
+    oficina: 4,
+    denominacao_os: 5,
+    descricao_os: 6,
+    estado_os: 7,
+    duracao_prevista: 8,
+    procedimento: 10,
+    turno_previsto: 13,
+    data_prevista: 15
+  };
+
+  const officeMap = {
+    CIV: "civil",
+    ELE: "elet",
+    REF: "refrig",
+    PIN: "pintura",
+    ELM: "util",
+    SPI: "spci",
+    LTE: "limpTec",
+    JAR: "jardim",
+    LCO: "limpConv"
+  };
+
+  const allowedStates = new Set([50, 55, 77, 96, 99]);
+  const statusFromEstado = (estado) => {
+    const n = Number(estado || 0);
+    if (n === 55) return "progress";
+    if (n === 77 || n === 99) return "done";
+    return "pending";
+  };
+
+  const out = mkEmptyData_();
+  const values = sheet.getRange(2, 1, lastRow - 1, readColumnCount).getValues();
+  let scanned = 0;
+  let kept = 0;
+
+  for (const row of values) {
+    scanned++;
+
+    const rawOffice = String(row[COL.oficina] || "").trim().toUpperCase();
+    const oficinaId = officeMap[rawOffice] || "";
+    if (!oficinaId) continue;
+
+    const datePrev = parseIsoDate_(row[COL.data_prevista]);
+    if (!datePrev) continue;
+    if (datePrev < weekStart || datePrev > weekEnd) continue;
+
+    const estado = Number(row[COL.estado_os] || 0);
+    if (!allowedStates.has(estado)) continue;
+
+    const turnoRaw = String(row[COL.turno_previsto] || "").trim().toUpperCase();
+    let subteamId = "";
+    if (oficinaId === "util") {
+      if (turnoRaw === "T2A") subteamId = "t2a";
+      else if (turnoRaw === "T1") subteamId = "t1";
+      else if (turnoRaw === "T2") subteamId = "t2";
+      else if (turnoRaw === "T3") subteamId = "t3";
+      else subteamId = "t1";
+    } else if (oficinaId === "limpConv") {
+      if (turnoRaw === "T1") subteamId = "t1";
+      else if (turnoRaw === "T2" || turnoRaw === "T2E") subteamId = "t2";
+      else if (turnoRaw === "T3" || turnoRaw === "T3E") subteamId = "t3";
+      else subteamId = "t1";
+    }
+
+    const codeRaw = row[COL.numero_os];
+    const titleRaw = row[COL.denominacao_os];
+    const descriptionRaw = row[COL.descricao_os];
+    const code = String(codeRaw == null ? "" : codeRaw).trim() || `OS-${scanned}`;
+    const title = String(titleRaw == null ? "" : titleRaw).trim() || "Ordem de Serviço";
+    const description = String(descriptionRaw == null ? "" : descriptionRaw).trim();
+
+    const exec = parseExecutantes_(row[COL.procedimento]);
+
+    const hh = parseHours_(row[COL.duracao_prevista]);
+
+    const dateIso = Utilities.formatDate(datePrev, "America/Sao_Paulo", "yyyy-MM-dd");
+    const order = {
+      date: dateIso,
+      code,
+      title,
+      description,
+      hh,
+      exec,
+      status: statusFromEstado(estado),
+      resources: []
+    };
+
+    if (oficinaId === "util") out.util[subteamId].push(order);
+    else if (oficinaId === "limpConv") out.limpConv[subteamId].push(order);
+    else out[oficinaId].push(order);
+    kept++;
+  }
+
+  const payload = {
+    updatedAt: new Date().toISOString(),
+    weekStart: weekStartIso,
+    weekEnd: weekEndIso,
+    data: out,
+    meta: { scanned, kept }
+  };
+  cache.put(cacheKey, JSON.stringify(payload), 120);
+  return payload;
+}
+
 function doGet(e) {
-  const payload = buildDashboardPayload_();
+  const view = e && e.parameter ? String(e.parameter.view || "").trim() : "";
+  const payload = view === "prog_sem" ? buildProgSemPayload_(e) : buildDashboardPayload_();
   const cb = e && e.parameter ? e.parameter.callback : "";
   if (cb) {
     const out = cb + "(" + JSON.stringify(payload) + ");";
