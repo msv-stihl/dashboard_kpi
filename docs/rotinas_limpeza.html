@@ -9,16 +9,18 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#f5f6f3;
+    --bg:#EDEDED;
     --surface:#ffffff;
-    --surface-soft:#fbfbf8;
-    --border:#e3e5e1;
-    --border-soft:#eceee9;
-    --ink:#1a1e22;
-    --ink-soft:#5c6470;
-    --ink-faint:#97a0ac;
-    --accent:#dd8b2e;
-    --accent-soft:#fbf1e2;
+    --surface-soft:#EDEDED;
+    --border:rgba(17,17,17,.12);
+    --border-soft:rgba(35,35,35,.1);
+    --ink:#111111;
+    --ink-soft:#232323;
+    --ink-faint:rgba(35,35,35,.58);
+    --accent:#FF460A;
+    --accent-soft:rgba(255,70,10,.10);
+    --dark:#232323;
+    --darkest:#111111;
     --green:#3f8f5f;
     --green-bg:#eaf4ed;
     --yellow:#c2811c;
@@ -125,7 +127,7 @@
 
   .filters{
     display:grid;
-    grid-template-columns:repeat(4, minmax(0, 1fr));
+    grid-template-columns:repeat(5, minmax(0, 1fr));
     gap:14px;
     align-items:end;
   }
@@ -142,6 +144,8 @@
   }
   .field input,
   .field select{
+    width:100%;
+    min-width:0;
     height:42px;
     border-radius:10px;
     border:1px solid var(--border);
@@ -149,6 +153,98 @@
     color:var(--ink);
     font:500 14px var(--font-body);
     padding:0 12px;
+  }
+
+  .field.is-wide{
+    grid-column:span 2;
+  }
+
+  .status-filter{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:14px;
+    flex-wrap:wrap;
+    margin-top:14px;
+    padding-top:14px;
+    border-top:1px solid var(--border-soft);
+  }
+  .status-filter-main{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    flex:1;
+    flex-wrap:wrap;
+    min-width:0;
+  }
+  .status-filter .label{
+    font:500 11px var(--font-mono);
+    color:var(--ink-faint);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+  }
+  .status-buttons{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(110px, 1fr));
+    gap:8px;
+    min-width:0;
+    flex:1;
+  }
+  .status-btn{
+    min-height:34px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:#fff;
+    color:var(--ink-soft);
+    padding:0 12px;
+    cursor:pointer;
+    font:600 13px var(--font-body);
+    transition:border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .status-btn:hover{
+    border-color:var(--accent);
+    color:var(--accent);
+    background:var(--accent-soft);
+  }
+  .status-btn.is-active{
+    border-color:var(--ink);
+    background:var(--ink);
+    color:#fff;
+  }
+  .status-btn[data-status="green"].is-active{
+    border-color:var(--green);
+    background:var(--green);
+  }
+  .status-btn[data-status="yellow"].is-active{
+    border-color:var(--yellow);
+    background:var(--yellow);
+  }
+  .status-btn[data-status="red"].is-active{
+    border-color:var(--red);
+    background:var(--red);
+  }
+  .filters-actions{
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    flex-wrap:wrap;
+    gap:10px;
+  }
+  .btn-clear{
+    min-height:36px;
+    border-radius:999px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    color:var(--dark);
+    padding:0 14px;
+    cursor:pointer;
+    font:600 13px var(--font-body);
+    transition:border-color .15s ease, background .15s ease, color .15s ease;
+  }
+  .btn-clear:hover{
+    border-color:var(--accent);
+    background:var(--accent-soft);
+    color:var(--accent);
   }
 
   .summary{
@@ -203,9 +299,9 @@
     margin-bottom:14px;
     padding:12px 14px;
     border-radius:12px;
-    border:1px solid rgba(194,129,28,.24);
-    background:var(--yellow-bg);
-    color:#7d5412;
+    border:1px solid rgba(255,70,10,.18);
+    background:var(--accent-soft);
+    color:var(--accent);
     font-size:13px;
   }
 
@@ -296,6 +392,10 @@
     font-size:12px;
     font-weight:600;
   }
+  .chip.is-predio{
+    background:var(--accent-soft);
+    color:var(--accent);
+  }
 
   .items{
     display:flex;
@@ -372,6 +472,8 @@
   @media (max-width: 1100px){
     .filters,
     .summary{grid-template-columns:repeat(2, minmax(0, 1fr))}
+    .field.is-wide{grid-column:span 1}
+    .status-buttons{grid-template-columns:repeat(2, minmax(0, 1fr))}
   }
 
   @media (max-width: 720px){
@@ -379,8 +481,21 @@
     .filters,
     .summary,
     .metrics{grid-template-columns:1fr}
+    .panel{padding:14px}
     .card-head,
     .item-head{flex-direction:column}
+    .topbar,
+    .topbar-main{gap:12px}
+    .status-box{width:100%;min-width:0}
+    .status-filter,
+    .status-filter-main,
+    .filters-actions{
+      flex-direction:column;
+      align-items:stretch;
+    }
+    .status-buttons{grid-template-columns:1fr 1fr;width:100%}
+    .status-btn,
+    .btn-clear{width:100%}
   }
 </style>
 </head>
@@ -408,8 +523,12 @@
           <input id="dateFilter" type="date">
         </div>
         <div class="field">
+          <label for="predioFilter">Prédio</label>
+          <select id="predioFilter"></select>
+        </div>
+        <div class="field is-wide">
           <label for="ambienteFilter">Ambiente</label>
-          <select id="ambienteFilter"></select>
+          <input id="ambienteFilter" type="search" placeholder="Digite parte do ambiente">
         </div>
         <div class="field">
           <label for="cronogramaFilter">Cronograma</label>
@@ -418,6 +537,20 @@
         <div class="field">
           <label for="turnoFilter">Turno</label>
           <select id="turnoFilter"></select>
+        </div>
+      </div>
+      <div class="status-filter">
+        <div class="status-filter-main">
+          <div class="label">Status</div>
+          <div class="status-buttons" id="statusButtons">
+            <button class="status-btn is-active" data-status="all" type="button">Todos</button>
+            <button class="status-btn" data-status="green" type="button">Verdes</button>
+            <button class="status-btn" data-status="yellow" type="button">Amarelos</button>
+            <button class="status-btn" data-status="red" type="button">Vermelhos</button>
+          </div>
+        </div>
+        <div class="filters-actions">
+          <button class="btn-clear" id="clearFiltersBtn" type="button">Limpar filtros</button>
         </div>
       </div>
     </section>
@@ -450,9 +583,11 @@
       loading: false,
       filters: {
         date: todayIso,
-        ambiente: "all",
+        ambienteQuery: "",
+        predio: "all",
         cronograma: "all",
-        turno: "all"
+        turno: "all",
+        status: "all"
       }
     };
 
@@ -462,8 +597,11 @@
     const selectedDateMeta = document.getElementById("selectedDateMeta");
     const dateFilter = document.getElementById("dateFilter");
     const ambienteFilter = document.getElementById("ambienteFilter");
+    const predioFilter = document.getElementById("predioFilter");
     const cronogramaFilter = document.getElementById("cronogramaFilter");
     const turnoFilter = document.getElementById("turnoFilter");
+    const statusButtons = document.getElementById("statusButtons");
+    const clearFiltersBtn = document.getElementById("clearFiltersBtn");
     const summaryHost = document.getElementById("summaryHost");
     const alertHost = document.getElementById("alertHost");
     const helperTitle = document.getElementById("helperTitle");
@@ -492,6 +630,12 @@
         .replace(/[\u0300-\u036f]/g, "")
         .toLowerCase()
         .trim();
+    }
+
+    function getPredioLabel(ambiente){
+      const raw = String(ambiente ?? "").trim().toUpperCase();
+      if(!raw) return "";
+      return raw.slice(0, 3);
     }
 
     function statusMeta(status){
@@ -639,11 +783,29 @@
       }
     }
 
+    function syncStatusButtons(){
+      Array.from(statusButtons.querySelectorAll(".status-btn")).forEach((btn)=>{
+        btn.classList.toggle("is-active", btn.getAttribute("data-status") === state.filters.status);
+      });
+    }
+
+    function resetFilters(){
+      state.filters.ambienteQuery = "";
+      state.filters.predio = "all";
+      state.filters.cronograma = "all";
+      state.filters.turno = "all";
+      state.filters.status = "all";
+    }
+
     function filteredItems(){
       const payload = state.payload;
       const items = Array.isArray(payload?.items) ? payload.items : [];
       return items.filter((item)=>{
-        if(state.filters.ambiente !== "all" && item.ambiente !== state.filters.ambiente) return false;
+        if(state.filters.predio !== "all" && getPredioLabel(item.ambiente) !== state.filters.predio) return false;
+        if(state.filters.ambienteQuery){
+          const ambienteText = normalizeText(item.ambiente);
+          if(!ambienteText.includes(normalizeText(state.filters.ambienteQuery))) return false;
+        }
         if(state.filters.cronograma !== "all" && item.cronogramaId !== state.filters.cronograma) return false;
         if(state.filters.turno !== "all"){
           const turns = Array.isArray(item.turnos) ? item.turnos : [];
@@ -660,6 +822,7 @@
         if(!map.has(item.ambiente)){
           map.set(item.ambiente, {
             ambiente: item.ambiente,
+            predio: getPredioLabel(item.ambiente),
             status: "green",
             totalActual: 0,
             totalExpected: 0,
@@ -717,6 +880,17 @@
       helperText.textContent = "Leituras do dia: " + summary.actual + " registradas para " + summary.expected + " esperadas.";
     }
 
+    function getPredios(payload){
+      const base = Array.isArray(payload?.filters?.ambientes) ? payload.filters.ambientes : [];
+      return Array.from(new Set(base.map((ambiente)=>getPredioLabel(ambiente)).filter(Boolean)))
+        .sort((a, b)=>a.localeCompare(b, "pt-BR"));
+    }
+
+    function filterAmbientesByStatus(ambientes){
+      if(state.filters.status === "all") return ambientes;
+      return ambientes.filter((ambiente)=>ambiente.status === state.filters.status);
+    }
+
     function renderAlerts(payload){
       const alerts = [];
       if(!endpoint){
@@ -749,6 +923,9 @@
         const turnos = ambiente.turnos.length
           ? ambiente.turnos.map((label)=>'<span class="chip">' + escapeHtml(label) + '</span>').join("")
           : '<span class="chip">Sem turno informado</span>';
+        const predio = ambiente.predio
+          ? '<span class="chip is-predio">' + escapeHtml(ambiente.predio) + '</span>'
+          : "";
         const items = ambiente.items.map((item)=>{
           const itemMeta = statusMeta(item.status);
           const days = Array.isArray(item.diasLabel) && item.diasLabel.length ? item.diasLabel.join(", ") : "Nao informado";
@@ -788,6 +965,7 @@
               '<div class="metric"><div class="label">Cronogramas</div><div class="value">' + ambiente.cronogramas.length + '</div></div>' +
             '</div>' +
             '<div class="chips">' + cronogramas + '</div>' +
+            '<div class="chips">' + predio + '</div>' +
             '<div class="chips">' + turnos + '</div>' +
             '<div class="items">' + items + '</div>' +
           '</article>';
@@ -797,9 +975,11 @@
     function render(){
       const payload = state.payload || {};
       syncDateBounds(payload);
-      syncSelect(ambienteFilter, payload?.filters?.ambientes || [], state.filters.ambiente, "Todos");
+      syncSelect(predioFilter, getPredios(payload), state.filters.predio, "Todos");
       syncSelect(cronogramaFilter, payload?.filters?.cronogramas || [], state.filters.cronograma, "Todos");
       syncSelect(turnoFilter, payload?.filters?.turnos || [], state.filters.turno, "Todos");
+      ambienteFilter.value = state.filters.ambienteQuery;
+      syncStatusButtons();
 
       selectedDateText.textContent = toDateLabel(payload?.selectedDate || state.filters.date);
       selectedDateMeta.textContent = payload?.meta?.selectedDateFound === false
@@ -807,7 +987,7 @@
         : "Leituras consolidadas por ambiente.";
 
       renderAlerts(payload);
-      const ambientes = aggregateByEnvironment(filteredItems());
+      const ambientes = filterAmbientesByStatus(aggregateByEnvironment(filteredItems()));
       renderSummary(ambientes);
       renderCards(ambientes);
     }
@@ -845,14 +1025,17 @@
     }
 
     dateFilter.addEventListener("change", ()=>{
-      state.filters.ambiente = "all";
-      state.filters.cronograma = "all";
-      state.filters.turno = "all";
+      resetFilters();
       load(dateFilter.value || todayIso);
     });
 
-    ambienteFilter.addEventListener("change", ()=>{
-      state.filters.ambiente = ambienteFilter.value || "all";
+    ambienteFilter.addEventListener("input", ()=>{
+      state.filters.ambienteQuery = ambienteFilter.value || "";
+      render();
+    });
+
+    predioFilter.addEventListener("change", ()=>{
+      state.filters.predio = predioFilter.value || "all";
       render();
     });
 
@@ -865,6 +1048,22 @@
       state.filters.turno = turnoFilter.value || "all";
       render();
     });
+
+    if(statusButtons){
+      statusButtons.addEventListener("click", (event)=>{
+        const button = event.target.closest(".status-btn");
+        if(!button) return;
+        state.filters.status = button.getAttribute("data-status") || "all";
+        render();
+      });
+    }
+
+    if(clearFiltersBtn){
+      clearFiltersBtn.addEventListener("click", ()=>{
+        resetFilters();
+        render();
+      });
+    }
 
     if(backBtn) backBtn.addEventListener("click", goBack);
 
