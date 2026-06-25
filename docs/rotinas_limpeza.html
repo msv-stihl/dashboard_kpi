@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rotinas de Limpeza</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#f5f6f3;
+    --surface:#ffffff;
+    --surface-soft:#fbfbf8;
+    --border:#e3e5e1;
+    --border-soft:#eceee9;
+    --ink:#1a1e22;
+    --ink-soft:#5c6470;
+    --ink-faint:#97a0ac;
+    --accent:#dd8b2e;
+    --accent-soft:#fbf1e2;
+    --green:#3f8f5f;
+    --green-bg:#eaf4ed;
+    --yellow:#c2811c;
+    --yellow-bg:#fbf0de;
+    --red:#c1473f;
+    --red-bg:#f8e7e5;
+    --radius:14px;
+    --font-body:'Inter',sans-serif;
+    --font-mono:'IBM Plex Mono',monospace;
+  }
+
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    min-height:100vh;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-body);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .page{
+    max-width:1480px;
+    margin:0 auto;
+    padding:26px 28px 44px;
+  }
+
+  .topbar{
+    display:flex;
+    justify-content:space-between;
+    gap:18px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+    margin-bottom:18px;
+  }
+
+  .topbar-main{
+    display:flex;
+    gap:14px;
+    align-items:flex-start;
+    flex-wrap:wrap;
+  }
+
+  .btn-back{
+    height:42px;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    color:var(--ink-soft);
+    padding:0 14px;
+    cursor:pointer;
+    font:600 13px var(--font-body);
+  }
+  .btn-back:hover{border-color:var(--accent);background:var(--surface-soft);color:var(--accent)}
+
+  .brand{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+  }
+  .brand h1{
+    margin:0;
+    font-size:28px;
+    font-weight:700;
+    letter-spacing:-0.02em;
+  }
+  .brand p{
+    margin:0;
+    font-size:14px;
+    color:var(--ink-soft);
+  }
+
+  .status-box{
+    padding:14px 16px;
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    background:var(--surface);
+    min-width:250px;
+  }
+  .status-box .label{
+    font:500 11px var(--font-mono);
+    color:var(--ink-faint);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+  }
+  .status-box .value{
+    margin-top:8px;
+    font-size:15px;
+    font-weight:600;
+  }
+  .status-box .sub{
+    margin-top:6px;
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+
+  .panel{
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:16px 18px;
+    margin-bottom:18px;
+  }
+
+  .filters{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0, 1fr));
+    gap:14px;
+    align-items:end;
+  }
+  .field{
+    display:flex;
+    flex-direction:column;
+    gap:7px;
+  }
+  .field label{
+    font:500 11px var(--font-mono);
+    color:var(--ink-faint);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+  }
+  .field input,
+  .field select{
+    height:42px;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:#fff;
+    color:var(--ink);
+    font:500 14px var(--font-body);
+    padding:0 12px;
+  }
+
+  .summary{
+    display:grid;
+    grid-template-columns:repeat(4, minmax(0, 1fr));
+    gap:14px;
+    margin-bottom:18px;
+  }
+  .summary-card{
+    padding:16px 18px;
+    border-radius:var(--radius);
+    border:1px solid var(--border);
+    background:var(--surface);
+  }
+  .summary-card .label{
+    font:500 11px var(--font-mono);
+    color:var(--ink-faint);
+    text-transform:uppercase;
+    letter-spacing:.08em;
+  }
+  .summary-card .value{
+    margin-top:8px;
+    font-size:34px;
+    font-weight:700;
+    line-height:1;
+  }
+  .summary-card .sub{
+    margin-top:7px;
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+
+  .summary-card.is-green{border-color:rgba(63,143,95,.24);background:var(--green-bg)}
+  .summary-card.is-yellow{border-color:rgba(194,129,28,.24);background:var(--yellow-bg)}
+  .summary-card.is-red{border-color:rgba(193,71,63,.24);background:var(--red-bg)}
+
+  .helper{
+    display:flex;
+    justify-content:space-between;
+    gap:14px;
+    align-items:center;
+    flex-wrap:wrap;
+    margin-bottom:14px;
+  }
+  .helper strong{font-size:16px}
+  .helper .sub{
+    font-size:13px;
+    color:var(--ink-soft);
+  }
+
+  .alert{
+    margin-bottom:14px;
+    padding:12px 14px;
+    border-radius:12px;
+    border:1px solid rgba(194,129,28,.24);
+    background:var(--yellow-bg);
+    color:#7d5412;
+    font-size:13px;
+  }
+
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(320px, 1fr));
+    gap:16px;
+  }
+
+  .card{
+    border-radius:16px;
+    border:1px solid var(--border);
+    background:var(--surface);
+    padding:16px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    min-height:260px;
+  }
+  .card.is-green{border-color:rgba(63,143,95,.24);background:linear-gradient(180deg, #ffffff, var(--green-bg))}
+  .card.is-yellow{border-color:rgba(194,129,28,.24);background:linear-gradient(180deg, #ffffff, var(--yellow-bg))}
+  .card.is-red{border-color:rgba(193,71,63,.24);background:linear-gradient(180deg, #ffffff, var(--red-bg))}
+
+  .card-head{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    align-items:flex-start;
+  }
+  .card-head h2{
+    margin:0;
+    font-size:18px;
+    font-weight:700;
+    line-height:1.15;
+  }
+  .card-head p{
+    margin:5px 0 0;
+    font-size:12px;
+    color:var(--ink-soft);
+  }
+
+  .badge{
+    border-radius:999px;
+    padding:7px 10px;
+    font:600 11px var(--font-mono);
+    text-transform:uppercase;
+    white-space:nowrap;
+  }
+  .badge.is-green{background:var(--green-bg);color:var(--green)}
+  .badge.is-yellow{background:var(--yellow-bg);color:var(--yellow)}
+  .badge.is-red{background:var(--red-bg);color:var(--red)}
+
+  .metrics{
+    display:grid;
+    grid-template-columns:repeat(3, minmax(0, 1fr));
+    gap:10px;
+  }
+  .metric{
+    padding:11px 12px;
+    border-radius:12px;
+    background:rgba(255,255,255,.72);
+    border:1px solid rgba(0,0,0,.05);
+  }
+  .metric .label{
+    font:500 10px var(--font-mono);
+    color:var(--ink-faint);
+    text-transform:uppercase;
+  }
+  .metric .value{
+    margin-top:7px;
+    font-size:18px;
+    font-weight:700;
+  }
+
+  .chips{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .chip{
+    min-height:28px;
+    display:inline-flex;
+    align-items:center;
+    border-radius:999px;
+    padding:0 10px;
+    background:rgba(0,0,0,.05);
+    color:var(--ink-soft);
+    font-size:12px;
+    font-weight:600;
+  }
+
+  .items{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  .item{
+    border-radius:12px;
+    background:rgba(255,255,255,.82);
+    border:1px solid rgba(0,0,0,.06);
+    padding:12px 13px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+  }
+  .item-head{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    align-items:flex-start;
+  }
+  .item-title{
+    font-size:14px;
+    font-weight:700;
+  }
+  .item-meta{
+    font-size:12px;
+    color:var(--ink-soft);
+    line-height:1.45;
+  }
+  .item-count{
+    font:700 16px var(--font-mono);
+    white-space:nowrap;
+  }
+  .item-foot{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    flex-wrap:wrap;
+    align-items:center;
+  }
+
+  .empty{
+    padding:36px 18px;
+    text-align:center;
+    color:var(--ink-soft);
+    background:var(--surface);
+    border:1px dashed var(--border);
+    border-radius:var(--radius);
+  }
+
+  .loading{
+    position:relative;
+    pointer-events:none;
+    opacity:.72;
+  }
+  .loading::after{
+    content:'';
+    position:absolute;
+    top:18px;
+    right:18px;
+    width:24px;
+    height:24px;
+    border-radius:50%;
+    border:3px solid rgba(221,139,46,.2);
+    border-top-color:var(--accent);
+    animation:spin .8s linear infinite;
+  }
+
+  @keyframes spin{
+    to{transform:rotate(360deg)}
+  }
+
+  @media (max-width: 1100px){
+    .filters,
+    .summary{grid-template-columns:repeat(2, minmax(0, 1fr))}
+  }
+
+  @media (max-width: 720px){
+    .page{padding:18px 14px 28px}
+    .filters,
+    .summary,
+    .metrics{grid-template-columns:1fr}
+    .card-head,
+    .item-head{flex-direction:column}
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <header class="topbar">
+      <div class="topbar-main">
+        <button class="btn-back" id="backBtn" type="button">← Voltar ao dashboard</button>
+        <div class="brand">
+          <h1>Rotinas de Limpeza</h1>
+          <p>Leituras diarias da guia LSI com consolidacao por ambiente.</p>
+        </div>
+      </div>
+      <div class="status-box">
+        <div class="label">Data exibida</div>
+        <div class="value" id="selectedDateText">--/--/----</div>
+        <div class="sub" id="selectedDateMeta">Carregando dados...</div>
+      </div>
+    </header>
+
+    <section class="panel" id="filtersPanel">
+      <div class="filters">
+        <div class="field">
+          <label for="dateFilter">Data</label>
+          <input id="dateFilter" type="date">
+        </div>
+        <div class="field">
+          <label for="ambienteFilter">Ambiente</label>
+          <select id="ambienteFilter"></select>
+        </div>
+        <div class="field">
+          <label for="cronogramaFilter">Cronograma</label>
+          <select id="cronogramaFilter"></select>
+        </div>
+        <div class="field">
+          <label for="turnoFilter">Turno</label>
+          <select id="turnoFilter"></select>
+        </div>
+      </div>
+    </section>
+
+    <section class="summary" id="summaryHost"></section>
+
+    <div id="alertHost"></div>
+
+    <section class="helper">
+      <div>
+        <strong id="helperTitle">Ambientes</strong>
+        <div class="sub" id="helperText">Filtre por data, cronograma, ambiente e turno.</div>
+      </div>
+    </section>
+
+    <section class="grid" id="cardsHost"></section>
+  </div>
+
+  <script src="./config.js"></script>
+  <script>
+  (function(){
+    const cfg = window.__DASHBOARD_CONFIG__ ?? { dataEndpoint:"", transport:"auto", jsonpCallbackParam:"callback" };
+    const endpoint = String(cfg.dataEndpoint || "").trim();
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const todayIso = toIsoDate(today);
+
+    const state = {
+      payload: null,
+      loading: false,
+      filters: {
+        date: todayIso,
+        ambiente: "all",
+        cronograma: "all",
+        turno: "all"
+      }
+    };
+
+    const backBtn = document.getElementById("backBtn");
+    const filtersPanel = document.getElementById("filtersPanel");
+    const selectedDateText = document.getElementById("selectedDateText");
+    const selectedDateMeta = document.getElementById("selectedDateMeta");
+    const dateFilter = document.getElementById("dateFilter");
+    const ambienteFilter = document.getElementById("ambienteFilter");
+    const cronogramaFilter = document.getElementById("cronogramaFilter");
+    const turnoFilter = document.getElementById("turnoFilter");
+    const summaryHost = document.getElementById("summaryHost");
+    const alertHost = document.getElementById("alertHost");
+    const helperTitle = document.getElementById("helperTitle");
+    const helperText = document.getElementById("helperText");
+    const cardsHost = document.getElementById("cardsHost");
+
+    function toIsoDate(date){
+      const d = new Date(date);
+      d.setHours(0,0,0,0);
+      const y = d.getFullYear();
+      const m = String(d.getMonth()+1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return y + "-" + m + "-" + dd;
+    }
+
+    function toDateLabel(iso){
+      if(!iso) return "--/--/----";
+      const d = new Date(iso + "T00:00:00");
+      if(Number.isNaN(d.getTime())) return iso;
+      return d.toLocaleDateString("pt-BR");
+    }
+
+    function normalizeText(value){
+      return String(value ?? "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+    }
+
+    function statusMeta(status){
+      if(status === "green") return { label:"Em dia", cls:"is-green" };
+      if(status === "yellow") return { label:"Parcial", cls:"is-yellow" };
+      return { label:"Pendente", cls:"is-red" };
+    }
+
+    function computeStatus(actual, expected){
+      if(!(expected > 0)) return "green";
+      if(actual >= expected) return "green";
+      if(actual > 0) return "yellow";
+      return "red";
+    }
+
+    function statusRank(status){
+      if(status === "red") return 2;
+      if(status === "yellow") return 1;
+      return 0;
+    }
+
+    function rankStatus(rank){
+      if(rank >= 2) return "red";
+      if(rank === 1) return "yellow";
+      return "green";
+    }
+
+    function fetchJsonp(urlString){
+      return new Promise((resolve, reject)=>{
+        const cbParam = String(cfg.jsonpCallbackParam || "callback");
+        const cbName = "__jsonp_cb_" + Date.now() + "_" + Math.random().toString(16).slice(2);
+        const url = new URL(urlString);
+        url.searchParams.set(cbParam, cbName);
+
+        let done = false;
+        const cleanup = ()=>{
+          if(done) return;
+          done = true;
+          try{ delete window[cbName]; } catch {}
+          if(script && script.parentNode) script.parentNode.removeChild(script);
+          if(timer) clearTimeout(timer);
+        };
+
+        window[cbName] = (payload)=>{
+          cleanup();
+          resolve(payload);
+        };
+
+        const script = document.createElement("script");
+        script.src = url.toString();
+        script.async = true;
+        script.onerror = ()=>{
+          cleanup();
+          reject(new Error("Falha no JSONP"));
+        };
+
+        const timer = setTimeout(()=>{
+          cleanup();
+          reject(new Error("Timeout no JSONP"));
+        }, 20000);
+
+        document.head.appendChild(script);
+      });
+    }
+
+    async function fetchPayload(dateIso){
+      if(!endpoint) return null;
+      const url = new URL(endpoint);
+      url.searchParams.set("view", "lsi_rotinas");
+      url.searchParams.set("date", dateIso);
+
+      const transport = String(cfg.transport || "auto").toLowerCase();
+      if(transport === "jsonp") return fetchJsonp(url.toString());
+      if(transport === "fetch"){
+        const res = await fetch(url.toString(), { method:"GET", mode:"cors", cache:"no-store" });
+        if(!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      }
+      try{
+        return await fetchJsonp(url.toString());
+      } catch {
+        const res = await fetch(url.toString(), { method:"GET", mode:"cors", cache:"no-store" });
+        if(!res.ok) throw new Error("HTTP " + res.status);
+        return res.json();
+      }
+    }
+
+    function setLoading(loading){
+      state.loading = loading;
+      filtersPanel.classList.toggle("loading", loading);
+      cardsHost.classList.toggle("loading", loading);
+      dateFilter.disabled = loading;
+      ambienteFilter.disabled = loading;
+      cronogramaFilter.disabled = loading;
+      turnoFilter.disabled = loading;
+    }
+
+    function goBack(){
+      const dashboardUrl = "./index.html#/lsi";
+      try{
+        const referrer = document.referrer ? new URL(document.referrer) : null;
+        const fromDashboard = referrer && referrer.origin === location.origin && /index\.html/i.test(referrer.pathname);
+        if(fromDashboard && window.history.length > 1){
+          window.history.back();
+          return;
+        }
+      } catch {}
+      window.location.href = dashboardUrl;
+    }
+
+    function optionHtml(value, label, selectedValue){
+      const selected = value === selectedValue ? " selected" : "";
+      return '<option value="' + escapeHtml(value) + '"' + selected + '>' + escapeHtml(label) + '</option>';
+    }
+
+    function escapeHtml(value){
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function syncDateBounds(payload){
+      const dates = Array.isArray(payload?.availableDates) ? payload.availableDates.slice().sort() : [];
+      const latestAvailable = dates.length ? dates[dates.length - 1] : todayIso;
+      const maxDate = latestAvailable < todayIso ? latestAvailable : todayIso;
+      dateFilter.min = dates.length ? dates[0] : "";
+      dateFilter.max = maxDate || todayIso;
+      if(!state.filters.date) state.filters.date = payload?.selectedDate || todayIso;
+      dateFilter.value = state.filters.date;
+    }
+
+    function syncSelect(selectEl, items, selectedValue, allLabel){
+      const values = Array.isArray(items) ? items : [];
+      let html = optionHtml("all", allLabel, selectedValue);
+      values.forEach((item)=>{
+        if(typeof item === "string") html += optionHtml(item, item, selectedValue);
+        else html += optionHtml(item.id, item.label, selectedValue);
+      });
+      selectEl.innerHTML = html;
+      if(!Array.from(selectEl.options).some((opt)=>opt.value === selectedValue)){
+        selectEl.value = "all";
+      }
+    }
+
+    function filteredItems(){
+      const payload = state.payload;
+      const items = Array.isArray(payload?.items) ? payload.items : [];
+      return items.filter((item)=>{
+        if(state.filters.ambiente !== "all" && item.ambiente !== state.filters.ambiente) return false;
+        if(state.filters.cronograma !== "all" && item.cronogramaId !== state.filters.cronograma) return false;
+        if(state.filters.turno !== "all"){
+          const turns = Array.isArray(item.turnos) ? item.turnos : [];
+          if(!turns.includes(state.filters.turno)) return false;
+        }
+        return true;
+      });
+    }
+
+    function aggregateByEnvironment(items){
+      const map = new Map();
+
+      items.forEach((item)=>{
+        if(!map.has(item.ambiente)){
+          map.set(item.ambiente, {
+            ambiente: item.ambiente,
+            status: "green",
+            totalActual: 0,
+            totalExpected: 0,
+            dueItems: 0,
+            worstStatusRank: 0,
+            cronogramas: new Set(),
+            turnos: new Set(),
+            items: []
+          });
+        }
+
+        const entry = map.get(item.ambiente);
+        entry.items.push(item);
+        entry.cronogramas.add(item.cronogramaLabel);
+        (Array.isArray(item.turnos) ? item.turnos : []).forEach((turno)=>entry.turnos.add(turno));
+        if(item.countsInSchedule && item.dueToday){
+          entry.totalActual += Number(item.actual || 0);
+          entry.totalExpected += Number(item.expected || 0);
+          entry.dueItems += 1;
+          entry.worstStatusRank = Math.max(entry.worstStatusRank, statusRank(item.status));
+        }
+      });
+
+      return Array.from(map.values())
+        .map((entry)=>{
+          entry.status = rankStatus(entry.worstStatusRank);
+          entry.cronogramas = Array.from(entry.cronogramas);
+          entry.turnos = Array.from(entry.turnos);
+          entry.items.sort((a, b)=>{
+            if(a.dueToday !== b.dueToday) return a.dueToday ? -1 : 1;
+            return normalizeText(a.cronogramaLabel).localeCompare(normalizeText(b.cronogramaLabel), "pt-BR");
+          });
+          return entry;
+        })
+        .sort((a, b)=>a.ambiente.localeCompare(b.ambiente, "pt-BR"));
+    }
+
+    function renderSummary(ambientes){
+      const summary = ambientes.reduce((acc, ambiente)=>{
+        acc.total += 1;
+        acc[ambiente.status] += 1;
+        acc.actual += ambiente.totalActual;
+        acc.expected += ambiente.totalExpected;
+        return acc;
+      }, { total:0, green:0, yellow:0, red:0, actual:0, expected:0 });
+
+      summaryHost.innerHTML = [
+        '<div class="summary-card"><div class="label">Ambientes</div><div class="value">' + summary.total + '</div><div class="sub">Ambientes visiveis apos os filtros</div></div>',
+        '<div class="summary-card is-green"><div class="label">Verdes</div><div class="value">' + summary.green + '</div><div class="sub">Ambientes em dia ou fora do cronograma no dia</div></div>',
+        '<div class="summary-card is-yellow"><div class="label">Amarelos</div><div class="value">' + summary.yellow + '</div><div class="sub">Ja houve leitura, mas ainda falta completar</div></div>',
+        '<div class="summary-card is-red"><div class="label">Vermelhos</div><div class="value">' + summary.red + '</div><div class="sub">Sem leitura registrada para o que era esperado</div></div>'
+      ].join("");
+
+      helperTitle.textContent = summary.total === 1 ? "1 ambiente filtrado" : summary.total + " ambientes filtrados";
+      helperText.textContent = "Leituras do dia: " + summary.actual + " registradas para " + summary.expected + " esperadas.";
+    }
+
+    function renderAlerts(payload){
+      const alerts = [];
+      if(!endpoint){
+        alerts.push("Configure o endpoint do Apps Script em config.js para carregar os dados reais.");
+      } else if(payload?.meta?.selectedDateFound === false){
+        alerts.push("A data selecionada nao foi encontrada nas colunas de leitura da planilha. Os valores exibidos estao zerados para esse dia.");
+      }
+      if(payload?.meta?.error) alerts.push(payload.meta.error);
+
+      alertHost.innerHTML = alerts.map((message)=>'<div class="alert">' + escapeHtml(message) + '</div>').join("");
+    }
+
+    function itemStatusText(item){
+      if(!item.countsInSchedule) return "Sob demanda";
+      if(!item.dueToday) return "Fora do dia";
+      return item.actual + "/" + item.expected + " leituras";
+    }
+
+    function renderCards(ambientes){
+      if(!ambientes.length){
+        cardsHost.innerHTML = '<div class="empty">Nenhum ambiente encontrado para os filtros selecionados.</div>';
+        return;
+      }
+
+      cardsHost.innerHTML = ambientes.map((ambiente)=>{
+        const meta = statusMeta(ambiente.status);
+        const cronogramas = ambiente.cronogramas.length
+          ? ambiente.cronogramas.map((label)=>'<span class="chip">' + escapeHtml(label) + '</span>').join("")
+          : '<span class="chip">Sem cronograma</span>';
+        const turnos = ambiente.turnos.length
+          ? ambiente.turnos.map((label)=>'<span class="chip">' + escapeHtml(label) + '</span>').join("")
+          : '<span class="chip">Sem turno informado</span>';
+        const items = ambiente.items.map((item)=>{
+          const itemMeta = statusMeta(item.status);
+          const days = Array.isArray(item.diasLabel) && item.diasLabel.length ? item.diasLabel.join(", ") : "Nao informado";
+          const turns = Array.isArray(item.turnos) && item.turnos.length ? item.turnos.join(", ") : "Nao informado";
+          return '' +
+            '<div class="item">' +
+              '<div class="item-head">' +
+                '<div>' +
+                  '<div class="item-title">' + escapeHtml(item.cronogramaLabel) + '</div>' +
+                  '<div class="item-meta">Dias: ' + escapeHtml(days) + ' • Frequencia: ' + escapeHtml(item.frequencyLabel) + '</div>' +
+                '</div>' +
+                '<div class="item-count">' + escapeHtml(itemStatusText(item)) + '</div>' +
+              '</div>' +
+              '<div class="item-foot">' +
+                '<div class="item-meta">Turno: ' + escapeHtml(turns) + ' • Linha ' + escapeHtml(item.rowNumber) + '</div>' +
+                '<span class="badge ' + itemMeta.cls + '">' + escapeHtml(itemMeta.label) + '</span>' +
+              '</div>' +
+            '</div>';
+        }).join("");
+
+        const readingText = ambiente.totalExpected > 0
+          ? ambiente.totalActual + "/" + ambiente.totalExpected
+          : "Sem leitura prevista";
+
+        return '' +
+          '<article class="card ' + meta.cls + '">' +
+            '<div class="card-head">' +
+              '<div>' +
+                '<h2>' + escapeHtml(ambiente.ambiente) + '</h2>' +
+                '<p>' + ambiente.items.length + ' atividades consideradas para os filtros atuais.</p>' +
+              '</div>' +
+              '<span class="badge ' + meta.cls + '">' + escapeHtml(meta.label) + '</span>' +
+            '</div>' +
+            '<div class="metrics">' +
+              '<div class="metric"><div class="label">Leituras</div><div class="value">' + escapeHtml(readingText) + '</div></div>' +
+              '<div class="metric"><div class="label">Previstas hoje</div><div class="value">' + ambiente.dueItems + '</div></div>' +
+              '<div class="metric"><div class="label">Cronogramas</div><div class="value">' + ambiente.cronogramas.length + '</div></div>' +
+            '</div>' +
+            '<div class="chips">' + cronogramas + '</div>' +
+            '<div class="chips">' + turnos + '</div>' +
+            '<div class="items">' + items + '</div>' +
+          '</article>';
+      }).join("");
+    }
+
+    function render(){
+      const payload = state.payload || {};
+      syncDateBounds(payload);
+      syncSelect(ambienteFilter, payload?.filters?.ambientes || [], state.filters.ambiente, "Todos");
+      syncSelect(cronogramaFilter, payload?.filters?.cronogramas || [], state.filters.cronograma, "Todos");
+      syncSelect(turnoFilter, payload?.filters?.turnos || [], state.filters.turno, "Todos");
+
+      selectedDateText.textContent = toDateLabel(payload?.selectedDate || state.filters.date);
+      selectedDateMeta.textContent = payload?.meta?.selectedDateFound === false
+        ? "Data nao localizada na grade da planilha."
+        : "Leituras consolidadas por ambiente.";
+
+      renderAlerts(payload);
+      const ambientes = aggregateByEnvironment(filteredItems());
+      renderSummary(ambientes);
+      renderCards(ambientes);
+    }
+
+    async function load(dateIso){
+      state.filters.date = dateIso;
+      if(!endpoint){
+        state.payload = {
+          selectedDate: dateIso,
+          availableDates: [dateIso],
+          filters: { ambientes: [], cronogramas: [], turnos: [] },
+          items: [],
+          meta: { selectedDateFound: false, error: "Sem endpoint configurado." }
+        };
+        render();
+        return;
+      }
+
+      setLoading(true);
+      try{
+        const payload = await fetchPayload(dateIso);
+        state.payload = payload && typeof payload === "object" ? payload : { items: [] };
+      } catch (error){
+        state.payload = {
+          selectedDate: dateIso,
+          availableDates: [dateIso],
+          filters: { ambientes: [], cronogramas: [], turnos: [] },
+          items: [],
+          meta: { error: error?.message ? String(error.message) : "Falha ao carregar dados.", selectedDateFound: false }
+        };
+      } finally {
+        setLoading(false);
+        render();
+      }
+    }
+
+    dateFilter.addEventListener("change", ()=>{
+      state.filters.ambiente = "all";
+      state.filters.cronograma = "all";
+      state.filters.turno = "all";
+      load(dateFilter.value || todayIso);
+    });
+
+    ambienteFilter.addEventListener("change", ()=>{
+      state.filters.ambiente = ambienteFilter.value || "all";
+      render();
+    });
+
+    cronogramaFilter.addEventListener("change", ()=>{
+      state.filters.cronograma = cronogramaFilter.value || "all";
+      render();
+    });
+
+    turnoFilter.addEventListener("change", ()=>{
+      state.filters.turno = turnoFilter.value || "all";
+      render();
+    });
+
+    if(backBtn) backBtn.addEventListener("click", goBack);
+
+    dateFilter.value = todayIso;
+    load(todayIso);
+  })();
+  </script>
+</body>
+</html>

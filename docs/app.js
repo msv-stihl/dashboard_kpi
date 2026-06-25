@@ -1265,6 +1265,10 @@ function renderRoute(route) {
     location.href = "./prog_sem.html";
     return;
   }
+  else if (route === "rotinas-limpeza") {
+    location.href = "./rotinas_limpeza.html";
+    return;
+  }
   else mountPlaceholder(host, "Dashboard");
   setNavActive(route);
 }

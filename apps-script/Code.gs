@@ -1610,9 +1610,363 @@ function buildProgSemPayload_(e) {
   return payload;
 }
 
+function buildLsiRotinasPayload_(e) {
+  const cfg = getConfig_();
+  if (!cfg.SPREADSHEET_ID) throw new Error("SPREADSHEET_ID ausente");
+
+  const ss = SpreadsheetApp.openById(cfg.SPREADSHEET_ID);
+  const sheet = ss.getSheetByName("LSI") || ss.getSheetByName("lsi");
+  const tz = "America/Sao_Paulo";
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  const parseIsoDate_ = (value) => {
+    if (!value) return null;
+    if (value instanceof Date) {
+      const d = new Date(value);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+    const s = String(value).trim();
+    if (!s) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      const d = new Date(`${s}T00:00:00`);
+      if (!Number.isNaN(d.getTime())) {
+        d.setHours(0, 0, 0, 0);
+        return d;
+      }
+    }
+    const parts = s.match(/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?$/);
+    if (parts) {
+      const dd = Number(parts[1]);
+      const mm = Number(parts[2]);
+      const yyRaw = Number(parts[3] || now.getFullYear());
+      const yy = yyRaw < 100 ? 2000 + yyRaw : yyRaw;
+      const d = new Date(yy, mm - 1, dd);
+      if (!Number.isNaN(d.getTime())) {
+        d.setHours(0, 0, 0, 0);
+        return d;
+      }
+    }
+    const fallback = new Date(s);
+    if (Number.isNaN(fallback.getTime())) return null;
+    fallback.setHours(0, 0, 0, 0);
+    return fallback;
+  };
+
+  const parseSheetDate_ = (value, yearHint) => {
+    if (value instanceof Date) {
+      const d = new Date(value);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+    const s = String(value == null ? "" : value).trim();
+    if (!s) return null;
+    const parts = s.match(/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?$/);
+    if (parts) {
+      const dd = Number(parts[1]);
+      const mm = Number(parts[2]);
+      const yyRaw = Number(parts[3] || yearHint || now.getFullYear());
+      const yy = yyRaw < 100 ? 2000 + yyRaw : yyRaw;
+      const d = new Date(yy, mm - 1, dd);
+      if (!Number.isNaN(d.getTime())) {
+        d.setHours(0, 0, 0, 0);
+        return d;
+      }
+    }
+    return parseIsoDate_(s);
+  };
+
+  const toIsoDate_ = (date) => Utilities.formatDate(date, tz, "yyyy-MM-dd");
+  const toPtDate_ = (date) => Utilities.formatDate(date, tz, "dd/MM/yyyy");
+  const normalizeText_ = (value) => String(value == null ? "" : value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+  const slugify_ = (value) => normalizeText_(value)
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const parseDayList_ = (value) => Array.from(new Set(
+    String(value == null ? "" : value)
+      .split(/[^\d]+/)
+      .map((part) => Number(part))
+      .filter((n) => Number.isFinite(n) && n >= 1 && n <= 7)
+  )).sort((a, b) => a - b);
+  const parseTurnList_ = (value) => {
+    const raw = String(value == null ? "" : value).trim();
+    if (!raw) return [];
+    const split = raw
+      .replace(/\s+e\s+/gi, ";")
+      .split(/[;,/|]+/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const out = split.length ? split : [raw];
+    return Array.from(new Set(out));
+  };
+  const weekdayCode_ = (date) => {
+    const jsDay = date.getDay();
+    return jsDay === 0 ? 7 : jsDay;
+  };
+  const isScheduledToday_ = (days, frequencyCode) => {
+    if (frequencyCode === 6) return false;
+    if (Array.isArray(days) && days.length) return days.indexOf(weekdayCode_(selectedDate)) >= 0;
+    return frequencyCode === 3;
+  };
+  const expectedReads_ = (frequencyCode, dueToday) => {
+    if (!dueToday || frequencyCode === 6) return 0;
+    if (frequencyCode === 2) return 2;
+    return 1;
+  };
+  const statusFromCounts_ = (actual, expected) => {
+    if (!(expected > 0)) return "green";
+    if (actual >= expected) return "green";
+    if (actual > 0) return "yellow";
+    return "red";
+  };
+  const statusRank_ = (status) => {
+    if (status === "red") return 2;
+    if (status === "yellow") return 1;
+    return 0;
+  };
+  const rankStatus_ = (rank) => {
+    if (rank >= 2) return "red";
+    if (rank === 1) return "yellow";
+    return "green";
+  };
+  const frequencyLabel_ = (frequencyCode) => ({
+    1: "Turnario",
+    2: "2x por dia",
+    3: "Diario",
+    4: "Alternado",
+    5: "Semanal",
+    6: "Sob demanda"
+  }[frequencyCode] || "Nao informado");
+  const dayLabels_ = (days) => {
+    const map = { 1: "Seg", 2: "Ter", 3: "Qua", 4: "Qui", 5: "Sex", 6: "Sab", 7: "Dom" };
+    return (days || []).map((day) => map[day] || String(day));
+  };
+
+  const selectedDateParam = e && e.parameter ? String(e.parameter.date || "").trim() : "";
+  const selectedDate = parseIsoDate_(selectedDateParam) || now;
+  const selectedDateIso = toIsoDate_(selectedDate);
+  const cache = CacheService.getScriptCache();
+  const cacheKey = `lsi_rotinas:${cfg.SPREADSHEET_ID}:${selectedDateIso}`;
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    try { return JSON.parse(cached); } catch {}
+  }
+  const putCacheIfFits_ = (value) => {
+    try {
+      const json = JSON.stringify(value);
+      if (json.length <= 95000) cache.put(cacheKey, json, 120);
+    } catch {}
+  };
+
+  const emptyPayload = (meta) => ({
+    updatedAt: new Date().toISOString(),
+    selectedDate: selectedDateIso,
+    selectedDateLabel: toPtDate_(selectedDate),
+    availableDates: [],
+    filters: {
+      ambientes: [],
+      cronogramas: [
+        { id: "salas", label: "Limpeza de Salas" },
+        { id: "banheiros", label: "Limpeza de Banheiros" },
+        { id: "residuos", label: "Recolhimento de Residuos" },
+        { id: "piso", label: "Limpeza de Piso" }
+      ],
+      turnos: []
+    },
+    items: [],
+    ambientes: [],
+    summary: {
+      totalAmbientes: 0,
+      green: 0,
+      yellow: 0,
+      red: 0,
+      totalExpected: 0,
+      totalActual: 0
+    },
+    meta: meta || {}
+  });
+
+  if (!sheet) {
+    const payload = emptyPayload({ error: "Aba LSI nao encontrada." });
+    putCacheIfFits_(payload);
+    return payload;
+  }
+
+  const lastCol = sheet.getLastColumn();
+  if (lastCol < 9) {
+    const payload = emptyPayload({ error: "Nao ha colunas de leitura na aba LSI." });
+    putCacheIfFits_(payload);
+    return payload;
+  }
+
+  const dateHeaderRow = sheet.getRange(6, 9, 1, lastCol - 8).getValues()[0] || [];
+  const availableDates = [];
+  const seenDates = new Set();
+  let targetColumn = -1;
+
+  dateHeaderRow.forEach((value, idx) => {
+    const parsed = parseSheetDate_(value, selectedDate.getFullYear());
+    if (!parsed) return;
+    const iso = toIsoDate_(parsed);
+    if (!seenDates.has(iso)) {
+      seenDates.add(iso);
+      availableDates.push(iso);
+    }
+    if (iso === selectedDateIso && targetColumn < 0) targetColumn = idx + 9;
+  });
+
+  const cronogramas = [
+    { id: "salas", label: "Limpeza de Salas", startRow: 7, endRow: 470 },
+    { id: "banheiros", label: "Limpeza de Banheiros", startRow: 472, endRow: 591 },
+    { id: "residuos", label: "Recolhimento de Residuos", startRow: 593, endRow: 744 },
+    { id: "piso", label: "Limpeza de Piso", startRow: 746, endRow: 766 }
+  ];
+
+  const ambienteSet = new Set();
+  const turnoSet = new Set();
+  const items = [];
+  let scanned = 0;
+  let kept = 0;
+  let ignoredOnDemand = 0;
+
+  for (const bloco of cronogramas) {
+    const rowCount = bloco.endRow - bloco.startRow + 1;
+    const baseRows = sheet.getRange(bloco.startRow, 2, rowCount, 6).getValues();
+    const readRows = targetColumn > 0
+      ? sheet.getRange(bloco.startRow, targetColumn, rowCount, 1).getValues()
+      : baseRows.map(() => [""]);
+
+    for (let idx = 0; idx < baseRows.length; idx++) {
+      const row = baseRows[idx] || [];
+      scanned++;
+
+      const ambiente = String(row[0] == null ? "" : row[0]).trim();
+      if (!ambiente) continue;
+
+      const dayCodes = parseDayList_(row[3]);
+      const frequencyCode = Math.floor(toNumber_(row[4]));
+      const turnos = parseTurnList_(row[5]);
+      const actual = Math.max(0, toNumber_(readRows[idx] && readRows[idx][0]));
+      const dueToday = isScheduledToday_(dayCodes, frequencyCode);
+      const expected = expectedReads_(frequencyCode, dueToday);
+      const status = statusFromCounts_(actual, expected);
+      const rowNumber = bloco.startRow + idx;
+
+      if (frequencyCode === 6) ignoredOnDemand++;
+
+      const item = {
+        rowNumber,
+        ambiente,
+        ambienteKey: slugify_(ambiente),
+        cronogramaId: bloco.id,
+        cronogramaLabel: bloco.label,
+        dias: dayCodes,
+        diasLabel: dayLabels_(dayCodes),
+        frequencyCode,
+        frequencyLabel: frequencyLabel_(frequencyCode),
+        turnos,
+        actual,
+        expected,
+        dueToday,
+        countsInSchedule: frequencyCode !== 6,
+        status
+      };
+
+      items.push(item);
+      ambienteSet.add(ambiente);
+      turnos.forEach((turno) => turnoSet.add(turno));
+      kept++;
+    }
+  }
+
+  const grouped = new Map();
+  items.forEach((item) => {
+    if (!grouped.has(item.ambiente)) {
+      grouped.set(item.ambiente, {
+        ambiente: item.ambiente,
+        ambienteKey: item.ambienteKey,
+        status: "green",
+        totalExpected: 0,
+        totalActual: 0,
+        dueItems: 0,
+        worstStatusRank: 0,
+        items: []
+      });
+    }
+    const entry = grouped.get(item.ambiente);
+    entry.items.push(item);
+    if (item.countsInSchedule && item.dueToday) {
+      entry.totalExpected += item.expected;
+      entry.totalActual += item.actual;
+      entry.dueItems++;
+      entry.worstStatusRank = Math.max(entry.worstStatusRank, statusRank_(item.status));
+    }
+  });
+
+  const ambientes = Array.from(grouped.values())
+    .map((entry) => {
+      entry.status = rankStatus_(entry.worstStatusRank);
+      entry.itemCount = entry.items.length;
+      entry.turnos = Array.from(new Set(
+        entry.items.flatMap((item) => Array.isArray(item.turnos) ? item.turnos : []).filter(Boolean)
+      ));
+      entry.cronogramas = Array.from(new Set(entry.items.map((item) => item.cronogramaLabel)));
+      return entry;
+    })
+    .sort((a, b) => a.ambiente.localeCompare(b.ambiente, "pt-BR"));
+
+  const summary = ambientes.reduce((acc, ambiente) => {
+    acc.totalAmbientes += 1;
+    acc[ambiente.status] += 1;
+    acc.totalExpected += ambiente.totalExpected;
+    acc.totalActual += ambiente.totalActual;
+    return acc;
+  }, {
+    totalAmbientes: 0,
+    green: 0,
+    yellow: 0,
+    red: 0,
+    totalExpected: 0,
+    totalActual: 0
+  });
+
+  const payload = {
+    updatedAt: new Date().toISOString(),
+    selectedDate: selectedDateIso,
+    selectedDateLabel: toPtDate_(selectedDate),
+    availableDates: availableDates.sort(),
+    filters: {
+      ambientes: Array.from(ambienteSet).sort((a, b) => a.localeCompare(b, "pt-BR")),
+      cronogramas: cronogramas.map((item) => ({ id: item.id, label: item.label })),
+      turnos: Array.from(turnoSet).sort((a, b) => a.localeCompare(b, "pt-BR"))
+    },
+    items,
+    ambientes,
+    summary,
+    meta: {
+      scanned,
+      kept,
+      ignoredOnDemand,
+      selectedDateFound: targetColumn > 0,
+      sheet: sheet.getName()
+    }
+  };
+
+  putCacheIfFits_(payload);
+  return payload;
+}
+
 function doGet(e) {
   const view = e && e.parameter ? String(e.parameter.view || "").trim() : "";
-  const payload = view === "prog_sem" ? buildProgSemPayload_(e) : buildDashboardPayload_();
+  let payload;
+  if (view === "prog_sem") payload = buildProgSemPayload_(e);
+  else if (view === "lsi_rotinas") payload = buildLsiRotinasPayload_(e);
+  else payload = buildDashboardPayload_();
   const cb = e && e.parameter ? e.parameter.callback : "";
   if (cb) {
     const out = cb + "(" + JSON.stringify(payload) + ");";
