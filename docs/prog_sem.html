@@ -811,6 +811,7 @@
     }
     if(estado === 77 || estado === 99){
       return {
+        accent:'#9AD872',
         bg:'#9AD872',
         fg:'#1A1E22',
         muted:'rgba(26,30,34,.72)',
@@ -820,8 +821,9 @@
         chipBorder:'rgba(26,30,34,.1)'
       };
     }
-    if(estado === 55 || (estado === 50 && isPast)){
+    if(estado === 55){
       return {
+        accent:'#FFD65A',
         bg:'#FFD65A',
         fg:'#1A1E22',
         muted:'rgba(26,30,34,.72)',
@@ -831,7 +833,20 @@
         chipBorder:'rgba(26,30,34,.1)'
       };
     }
+    if(estado === 50 && isPast){
+      return {
+        accent:'#D9605A',
+        bg:'#F7C3BD',
+        fg:'#1A1E22',
+        muted:'rgba(26,30,34,.72)',
+        detailBg:'rgba(255,255,255,.38)',
+        detailBorder:'rgba(26,30,34,.08)',
+        chipBg:'rgba(255,255,255,.56)',
+        chipBorder:'rgba(26,30,34,.1)'
+      };
+    }
     return {
+      accent:'var(--st-pending)',
       bg:'var(--surface)',
       fg:'var(--ink)',
       muted:'var(--ink-soft)',
@@ -1075,15 +1090,7 @@
 
   function goBackToDashboard(){
     const dashboardUrl = './index.html#/geral';
-    try{
-      const referrer = document.referrer ? new URL(document.referrer) : null;
-      const fromDashboard = referrer && referrer.origin === location.origin && /index\.html/i.test(referrer.pathname);
-      if(fromDashboard && window.history.length > 1){
-        window.history.back();
-        return;
-      }
-    } catch {}
-    window.location.href = dashboardUrl;
+    window.location.replace(dashboardUrl);
   }
 
   async function render(){
@@ -1200,7 +1207,7 @@
             const visual = getOrderVisual(o);
             const row = document.createElement('div');
             row.className = 'os-row' + (o.description ? ' has-details' : '');
-            row.style.setProperty('--status-color', status.color);
+            row.style.setProperty('--status-color', visual.accent || status.color);
             row.style.setProperty('--status-bg', visual.bg);
             row.style.setProperty('--status-fg', visual.fg);
             row.style.setProperty('--status-muted', visual.muted);

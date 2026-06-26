@@ -21,12 +21,12 @@
     --accent-soft:rgba(255,70,10,.10);
     --dark:#232323;
     --darkest:#111111;
-    --green:#3f8f5f;
-    --green-bg:#eaf4ed;
-    --yellow:#c2811c;
-    --yellow-bg:#fbf0de;
-    --red:#c1473f;
-    --red-bg:#f8e7e5;
+    --green:#9AD872;
+    --green-bg:#EEF8E2;
+    --yellow:#FFD65A;
+    --yellow-bg:#FFF4C8;
+    --red:#D9605A;
+    --red-bg:#FBE2DE;
     --radius:14px;
     --font-body:'Inter',sans-serif;
     --font-mono:'IBM Plex Mono',monospace;
@@ -277,9 +277,9 @@
     color:var(--ink-soft);
   }
 
-  .summary-card.is-green{border-color:rgba(63,143,95,.24);background:var(--green-bg)}
-  .summary-card.is-yellow{border-color:rgba(194,129,28,.24);background:var(--yellow-bg)}
-  .summary-card.is-red{border-color:rgba(193,71,63,.24);background:var(--red-bg)}
+  .summary-card.is-green{border-color:rgba(154,216,114,.45);background:linear-gradient(180deg, #ffffff, var(--green-bg))}
+  .summary-card.is-yellow{border-color:rgba(255,214,90,.52);background:linear-gradient(180deg, #ffffff, var(--yellow-bg))}
+  .summary-card.is-red{border-color:rgba(217,96,90,.42);background:linear-gradient(180deg, #ffffff, var(--red-bg))}
 
   .helper{
     display:flex;
@@ -321,9 +321,9 @@
     gap:14px;
     min-height:260px;
   }
-  .card.is-green{border-color:rgba(63,143,95,.24);background:linear-gradient(180deg, #ffffff, var(--green-bg))}
-  .card.is-yellow{border-color:rgba(194,129,28,.24);background:linear-gradient(180deg, #ffffff, var(--yellow-bg))}
-  .card.is-red{border-color:rgba(193,71,63,.24);background:linear-gradient(180deg, #ffffff, var(--red-bg))}
+  .card.is-green{border-color:rgba(154,216,114,.45);background:linear-gradient(180deg, #ffffff, var(--green-bg))}
+  .card.is-yellow{border-color:rgba(255,214,90,.52);background:linear-gradient(180deg, #ffffff, var(--yellow-bg))}
+  .card.is-red{border-color:rgba(217,96,90,.42);background:linear-gradient(180deg, #ffffff, var(--red-bg))}
 
   .card-head{
     display:flex;
@@ -350,9 +350,9 @@
     text-transform:uppercase;
     white-space:nowrap;
   }
-  .badge.is-green{background:var(--green-bg);color:var(--green)}
-  .badge.is-yellow{background:var(--yellow-bg);color:var(--yellow)}
-  .badge.is-red{background:var(--red-bg);color:var(--red)}
+  .badge.is-green{background:rgba(154,216,114,.22);color:#3F7A1A;border:1px solid rgba(154,216,114,.48)}
+  .badge.is-yellow{background:rgba(255,214,90,.28);color:#9A6800;border:1px solid rgba(255,214,90,.56)}
+  .badge.is-red{background:rgba(217,96,90,.18);color:#B33D36;border:1px solid rgba(217,96,90,.42)}
 
   .metrics{
     display:grid;
@@ -362,8 +362,8 @@
   .metric{
     padding:11px 12px;
     border-radius:12px;
-    background:rgba(255,255,255,.72);
-    border:1px solid rgba(0,0,0,.05);
+    background:rgba(255,255,255,.82);
+    border:1px solid rgba(0,0,0,.06);
   }
   .metric .label{
     font:500 10px var(--font-mono);
@@ -735,15 +735,7 @@
 
     function goBack(){
       const dashboardUrl = "./index.html#/lsi";
-      try{
-        const referrer = document.referrer ? new URL(document.referrer) : null;
-        const fromDashboard = referrer && referrer.origin === location.origin && /index\.html/i.test(referrer.pathname);
-        if(fromDashboard && window.history.length > 1){
-          window.history.back();
-          return;
-        }
-      } catch {}
-      window.location.href = dashboardUrl;
+      window.location.replace(dashboardUrl);
     }
 
     function optionHtml(value, label, selectedValue){

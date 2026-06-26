@@ -1,4 +1,4 @@
-const cfg = window.__DASHBOARD_CONFIG__ ?? { dataEndpoint: "", pollMs: 300000 };
+const cfg = window.__DASHBOARD_CONFIG__ ?? { dataEndpoint: "" };
 
 const qs = (sel, root = document) => root.querySelector(sel);
 const qsa = (sel, root = document) => Array.from(root.querySelectorAll(sel));
@@ -1262,11 +1262,11 @@ function renderRoute(route) {
   else if (route === "utilidades") mountUtilidades(host, store.data);
   else if (route === "spci") mountSPCI(host, store.data);
   else if (route === "programacao") {
-    location.href = "./prog_sem.html";
+    location.replace("./prog_sem.html");
     return;
   }
   else if (route === "rotinas-limpeza") {
-    location.href = "./rotinas_limpeza.html";
+    location.replace("./rotinas_limpeza.html");
     return;
   }
   else mountPlaceholder(host, "Dashboard");
@@ -1342,13 +1342,6 @@ async function init() {
   updateStatusLine();
   renderRoute(initialRoute);
 
-  const poll = clamp(Number(cfg.pollMs ?? 300000), 15000, 3600000);
-  setInterval(async () => {
-    await fetchDashboardData();
-    updateStatusLine();
-    const route = getRoute();
-    if (route !== "home") renderRoute(route);
-  }, poll);
 }
 
 init();
