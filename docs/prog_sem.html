@@ -23,8 +23,10 @@
 
     --st-pending:#8B93A1;
     --st-pending-bg:#EEF0F2;
-    --st-progress:#C2811C;
+    --st-progress:#FFD65A;
     --st-progress-bg:#FBF0DE;
+    --st-evaluation:#B4E1EB;
+    --st-evaluation-bg:#E8F6F9;
     --st-done:#3F8F5F;
     --st-done-bg:#E9F4ED;
 
@@ -524,8 +526,9 @@
       </div>
       <button class="btn-current" id="currentWeekBtn">Semana atual</button>
       <div class="status-legend">
-        <span class="legend-item" style="--dot:var(--st-pending)">Não executada</span>
-        <span class="legend-item" style="--dot:var(--st-progress)">Em andamento</span>
+        <span class="legend-item" style="--dot:#D9605A">Não executada</span>
+        <span class="legend-item" style="--dot:var(--st-evaluation)">Avaliação</span>
+        <span class="legend-item" style="--dot:var(--st-progress)">Em execução</span>
         <span class="legend-item" style="--dot:var(--st-done)">Concluída</span>
       </div>
     </div>
@@ -569,7 +572,8 @@
 
   const STATUS = {
     pending:  { label:'Não executada', color:'var(--st-pending)',  bg:'var(--st-pending-bg)'  },
-    progress: { label:'Em andamento',  color:'var(--st-progress)', bg:'var(--st-progress-bg)' },
+    evaluation: { label:'Avaliação',   color:'var(--st-evaluation)', bg:'var(--st-evaluation-bg)' },
+    progress: { label:'Em execução',   color:'var(--st-progress)', bg:'var(--st-progress-bg)' },
     done:     { label:'Concluída',     color:'var(--st-done)',     bg:'var(--st-done-bg)'     },
   };
 
@@ -813,6 +817,18 @@
       return {
         accent:'#9AD872',
         bg:'#9AD872',
+        fg:'#1A1E22',
+        muted:'rgba(26,30,34,.72)',
+        detailBg:'rgba(255,255,255,.34)',
+        detailBorder:'rgba(26,30,34,.08)',
+        chipBg:'rgba(255,255,255,.5)',
+        chipBorder:'rgba(26,30,34,.1)'
+      };
+    }
+    if(estado === 30){
+      return {
+        accent:'var(--st-evaluation)',
+        bg:'var(--st-evaluation)',
         fg:'#1A1E22',
         muted:'rgba(26,30,34,.72)',
         detailBg:'rgba(255,255,255,.34)',

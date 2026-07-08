@@ -1,6 +1,7 @@
 const DEFAULTS = {
   SPREADSHEET_ID: "",
   SOURCE_SHEET: "prisma_source",
+  APPS_SCRIPT_TOKEN: "",
   API_URL: "",
   API_METHOD: "GET",
   API_HEADERS_JSON: "{}",
@@ -1090,6 +1091,307 @@ function toNumber_(v) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function formatDatePtBrOnly_(value) {
+  const parsed = parseDateForSheet_(value);
+  if (!parsed || !(parsed instanceof Date) || Number.isNaN(parsed.getTime())) return "";
+  return Utilities.formatDate(parsed, "America/Sao_Paulo", "dd/MM/yyyy");
+}
+
+function normalizeSearchValue_(value) {
+  return String(value == null ? "" : value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function compactSearchValue_(value) {
+  return normalizeSearchValue_(value).replace(/\s+/g, "");
+}
+
+function escapeRegex_(value) {
+  return String(value == null ? "" : value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function matchesTokenInText_(text, token) {
+  const safeText = normalizeSearchValue_(text);
+  const safeToken = compactSearchValue_(token);
+  if (!safeToken) return false;
+  const boundaryPattern = new RegExp(`(^|[^A-Z0-9])${escapeRegex_(safeToken)}([^A-Z0-9]|$)`);
+  if (boundaryPattern.test(safeText.replace(/\s+/g, " "))) return true;
+  return safeText.replace(/\s+/g, "").indexOf(safeToken) >= 0;
+}
+
+function buildClientOsMatchFromRow_(sheet, rowNumber, matchField) {
+  if (!sheet || !rowNumber || rowNumber < 2) return null;
+
+  const row = sheet.getRange(rowNumber, 1, 1, 20).getValues()[0] || [];
+  const c0 = String(row[0] == null ? "" : row[0]).trim();
+  const c1 = String(row[1] == null ? "" : row[1]).trim();
+  const c5 = String(row[5] == null ? "" : row[5]).trim();
+  const c6 = String(row[6] == null ? "" : row[6]).trim();
+
+  return {
+    score: matchField === "c0" ? 300 : matchField === "c1" ? 250 : 100,
+    rowNumber,
+    matchField,
+    numeroOs: c0,
+    osCliente: c1,
+    titulo: c5,
+    descricao: c6,
+    estadoCodigo: Math.floor(toNumber_(row[7])),
+    prioridadeCodigo: Math.floor(toNumber_(row[9])),
+    dataAbertura: formatDatePtBrOnly_(row[16]),
+    dataPrevista: formatDatePtBrOnly_(row[17]),
+    dataFechamento: formatDatePtBrOnly_(row[19])
+  };
+}
+
+function findClientOsExactMatchRow_(sheet, query, normalizedQuery) {
+  if (!sheet) return null;
+
+  const findByTextFinder_ = (column) => {
+    try {
+      const range = sheet.getRange(2, column, Math.max(sheet.getLastRow() - 1, 0), 1);
+      if (range.getNumRows() <= 0) return null;
+      const found = range
+        .createTextFinder(String(query == null ? "" : query).trim())
+        .matchEntireCell(true)
+        .findNext();
+      return found ? found.getRow() : null;
+    } catch (_) {
+      return null;
+    }
+  };
+
+  const rowOnC1 = findByTextFinder_(2);
+  if (rowOnC1) return { rowNumber: rowOnC1, matchField: "c1", scanned: 1 };
+
+  const rowOnC0 = findByTextFinder_(1);
+  if (rowOnC0) return { rowNumber: rowOnC0, matchField: "c0", scanned: 2 };
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+
+  const c1Values = sheet.getRange(2, 2, lastRow - 1, 1).getDisplayValues();
+  for (let idx = 0; idx < c1Values.length; idx++) {
+    if (compactSearchValue_(c1Values[idx][0]) === normalizedQuery) {
+      return { rowNumber: idx + 2, matchField: "c1", scanned: idx + 1 };
+    }
+  }
+
+  const c0Values = sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+  for (let idx = 0; idx < c0Values.length; idx++) {
+    if (compactSearchValue_(c0Values[idx][0]) === normalizedQuery) {
+      return { rowNumber: idx + 2, matchField: "c0", scanned: c1Values.length + idx + 1 };
+    }
+  }
+
+  return null;
+}
+
+function findClientOsDescriptionMatchRow_(sheet, normalizedQuery) {
+  if (!sheet || !normalizedQuery) return null;
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return null;
+
+  const descriptions = sheet.getRange(2, 7, lastRow - 1, 1).getDisplayValues();
+  for (let idx = 0; idx < descriptions.length; idx++) {
+    if (matchesTokenInText_(descriptions[idx][0], normalizedQuery)) {
+      return { rowNumber: idx + 2, matchField: "c6", scanned: idx + 1 };
+    }
+  }
+
+  return null;
+}
+
+function buildClientOsPayload_(e) {
+  const cfg = getConfig_();
+  if (!cfg.SPREADSHEET_ID) throw new Error("SPREADSHEET_ID ausente");
+
+  const token = e && e.parameter
+    ? String(e.parameter.token || e.parameter.access_token || e.parameter.api_token || "").trim()
+    : "";
+  const requiredToken = String(cfg.APPS_SCRIPT_TOKEN || "").trim();
+  if (requiredToken && token !== requiredToken) {
+    return {
+      ok: false,
+      found: false,
+      error: "Token inválido.",
+      item: null,
+      meta: { authorized: false }
+    };
+  }
+
+  const query = e && e.parameter
+    ? String(e.parameter.os || e.parameter.osNumber || e.parameter.q || e.parameter.numero || "").trim()
+    : "";
+  if (!query) {
+    return {
+      ok: false,
+      found: false,
+      error: "Parâmetro os ausente.",
+      item: null,
+      meta: { authorized: true }
+    };
+  }
+
+  const stateMap = {
+    0: "ABERTA",
+    20: "PLANEJADA",
+    30: "AGUARDANDO AVALIAÇÃO",
+    31: "AVALIADO",
+    38: "AGUARDANDO APROVAÇÃO RIC",
+    39: "IMPEDIMENTO - FORNECEDOR",
+    40: "IMPEDIMENTO - MATERIAL",
+    41: "IMPEDIMENTO - FERRAMENTA",
+    42: "IMPEDIMENTO - LIBERAÇÃO",
+    43: "IMPEDIMENTO - MATERIAL ESTOQUE",
+    44: "PARADA PROGRAMADA",
+    45: "IMPEDIMENTO - VERBA",
+    46: "NECESSÁRIO SERVIÇO EXTERNO",
+    47: "DISPONÍVEL PARA PROGRAMAR",
+    48: "AGUARDANDO ORÇAMENTO",
+    49: "REQUISIÇÃO CRIADA",
+    50: "PROGRAMADA",
+    55: "EM EXECUÇÃO",
+    59: "PEDIDO CRIADO",
+    60: "PROATIVA",
+    77: "EXECUTADA",
+    90: "APROVADA",
+    95: "NÃO CONCLUIDO",
+    96: "CANCELADA",
+    97: "REABERTA",
+    98: "RECUSADA",
+    99: "ENCERRADA"
+  };
+
+  const priorityMap = {
+    1: "Urgente",
+    2: "Alta",
+    3: "Média",
+    4: "Baixa",
+    5: "Parada programada",
+    6: "Visita"
+  };
+
+  const ss = SpreadsheetApp.openById(cfg.SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(cfg.SOURCE_SHEET || "prisma_source");
+  const normalizedQuery = compactSearchValue_(query);
+  const cache = CacheService.getScriptCache();
+  const cacheKey = `cliente_os:${cfg.SPREADSHEET_ID}:${normalizedQuery}`;
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    try { return JSON.parse(cached); } catch {}
+  }
+  const putCacheIfFits_ = (value) => {
+    try {
+      const json = JSON.stringify(value);
+      if (json.length <= 95000) cache.put(cacheKey, json, 120);
+    } catch {}
+  };
+
+  if (!sheet) {
+    const payload = {
+      ok: false,
+      found: false,
+      error: "Aba prisma_source não encontrada.",
+      item: null,
+      meta: { authorized: true }
+    };
+    putCacheIfFits_(payload);
+    return payload;
+  }
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) {
+    const payload = {
+      ok: true,
+      found: false,
+      query,
+      item: null,
+      meta: { authorized: true, scanned: 0, sheet: sheet.getName() }
+    };
+    putCacheIfFits_(payload);
+    return payload;
+  }
+
+  let scanned = 0;
+  let bestMatch = null;
+
+  const exactMatch = findClientOsExactMatchRow_(sheet, query, normalizedQuery);
+  if (exactMatch) {
+    scanned += Number(exactMatch.scanned || 0);
+    bestMatch = buildClientOsMatchFromRow_(sheet, exactMatch.rowNumber, exactMatch.matchField);
+  }
+
+  if (!bestMatch) {
+    const descriptionMatch = findClientOsDescriptionMatchRow_(sheet, normalizedQuery);
+    if (descriptionMatch) {
+      scanned += Number(descriptionMatch.scanned || 0);
+      bestMatch = buildClientOsMatchFromRow_(sheet, descriptionMatch.rowNumber, descriptionMatch.matchField);
+    } else {
+      scanned += Math.max(lastRow - 1, 0);
+    }
+  }
+
+  if (!bestMatch) {
+    const payload = {
+      ok: true,
+      found: false,
+      query,
+      item: null,
+      meta: {
+        authorized: true,
+        scanned,
+        sheet: sheet.getName()
+      }
+    };
+    putCacheIfFits_(payload);
+    return payload;
+  }
+
+  const estadoCodigo = Number(bestMatch.estadoCodigo || 0);
+  const prioridadeCodigo = Number(bestMatch.prioridadeCodigo || 0);
+  const item = {
+    matchField: bestMatch.matchField,
+    numeroOs: bestMatch.numeroOs,
+    osCliente: bestMatch.osCliente,
+    titulo: bestMatch.titulo,
+    descricao: bestMatch.descricao,
+    estado: {
+      codigo: estadoCodigo,
+      label: stateMap[estadoCodigo] || `ESTADO ${estadoCodigo}`
+    },
+    prioridade: {
+      codigo: prioridadeCodigo,
+      label: priorityMap[prioridadeCodigo] || ""
+    },
+    dataAbertura: bestMatch.dataAbertura,
+    dataPrevista: bestMatch.dataPrevista,
+    dataFechamento: bestMatch.dataFechamento,
+    encerrada: estadoCodigo === 96 || estadoCodigo === 99,
+    cancelada: estadoCodigo === 96
+  };
+
+  const payload = {
+    ok: true,
+    found: true,
+    query,
+    item,
+    meta: {
+      authorized: true,
+      scanned,
+      sheet: sheet.getName(),
+      rowNumber: bestMatch.rowNumber
+    }
+  };
+  putCacheIfFits_(payload);
+  return payload;
+}
+
 function monthLabels_(values) {
   return (values || []).map((v) => {
     if (v instanceof Date) return Utilities.formatDate(v, "America/Sao_Paulo", "MMM/yy");
@@ -1527,9 +1829,10 @@ function buildProgSemPayload_(e) {
     LCO: "limpConv"
   };
 
-  const allowedStates = new Set([50, 55, 77, 96, 99]);
+  const allowedStates = new Set([30, 50, 55, 77, 96, 99]);
   const statusFromEstado = (estado) => {
     const n = Number(estado || 0);
+    if (n === 30) return "evaluation";
     if (n === 55) return "progress";
     if (n === 77 || n === 99) return "done";
     return "pending";
@@ -1708,13 +2011,85 @@ function buildLsiRotinasPayload_(e) {
     const jsDay = date.getDay();
     return jsDay === 0 ? 7 : jsDay;
   };
+  const T1_START_MINUTES = 22 * 60 + 35;
+  const countDirectReads_ = (value) => {
+    if (value == null || value === "") return 0;
+    if (value instanceof Date) return 1;
+    if (typeof value === "number") {
+      if (value > 0 && value < 1) return 1;
+      return value > 0 ? Math.max(1, Math.floor(value)) : 0;
+    }
+    const text = String(value).trim();
+    if (!text) return 0;
+    const timeMatches = text.match(/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/g);
+    if (timeMatches && timeMatches.length) return timeMatches.length;
+    const lineParts = text
+      .split(/\r?\n+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (lineParts.length > 1) return lineParts.length;
+    const inlineParts = text
+      .split(/[;,|]+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (inlineParts.length > 1) return inlineParts.length;
+    const numeric = Number(text.replace(",", "."));
+    if (Number.isFinite(numeric) && numeric > 0) {
+      if (numeric > 0 && numeric < 1) return 1;
+      return Math.max(1, Math.floor(numeric));
+    }
+    return 1;
+  };
+  const extractReadTimes_ = (value) => {
+    if (value == null || value === "") return [];
+    if (value instanceof Date) {
+      return [Number(value.getHours()) * 60 + Number(value.getMinutes() || 0)];
+    }
+    if (typeof value === "number") {
+      if (value > 0 && value < 1) return [Math.round(value * 24 * 60)];
+      return [];
+    }
+    const text = String(value).trim();
+    if (!text) return [];
+    const matches = Array.from(text.matchAll(/\b([01]?\d|2[0-3]):([0-5]\d)\b/g));
+    return matches.map((match) => Number(match[1]) * 60 + Number(match[2]));
+  };
+  const countOperationalDayReads_ = (currentValues, previousValues, useNightShiftRule) => {
+    const currentList = Array.isArray(currentValues) ? currentValues : [];
+    const previousList = Array.isArray(previousValues) ? previousValues : [];
+
+    if (!useNightShiftRule) {
+      return currentList.reduce((sum, value) => sum + countDirectReads_(value), 0);
+    }
+
+    let total = 0;
+    currentList.forEach((value) => {
+      const times = extractReadTimes_(value);
+      if (times.length) {
+        total += times.filter((minutes) => minutes < T1_START_MINUTES).length;
+      } else {
+        total += countDirectReads_(value);
+      }
+    });
+    previousList.forEach((value) => {
+      const times = extractReadTimes_(value);
+      if (times.length) {
+        total += times.filter((minutes) => minutes >= T1_START_MINUTES).length;
+      }
+    });
+    return total;
+  };
   const isScheduledToday_ = (days, frequencyCode) => {
     if (frequencyCode === 6) return false;
     if (Array.isArray(days) && days.length) return days.indexOf(weekdayCode_(selectedDate)) >= 0;
     return frequencyCode === 3;
   };
-  const expectedReads_ = (frequencyCode, dueToday) => {
+  const expectedReads_ = (frequencyCode, dueToday, turnos) => {
     if (!dueToday || frequencyCode === 6) return 0;
+    if (frequencyCode === 1) {
+      const turnCount = Array.isArray(turnos) ? turnos.filter(Boolean).length : 0;
+      return Math.max(1, turnCount || 1);
+    }
     if (frequencyCode === 2) return 2;
     return 1;
   };
@@ -1807,7 +2182,7 @@ function buildLsiRotinasPayload_(e) {
   const dateHeaderRow = sheet.getRange(6, 9, 1, lastCol - 8).getValues()[0] || [];
   const availableDates = [];
   const seenDates = new Set();
-  let targetColumn = -1;
+  const columnsByDate = new Map();
 
   dateHeaderRow.forEach((value, idx) => {
     const parsed = parseSheetDate_(value, selectedDate.getFullYear());
@@ -1817,8 +2192,15 @@ function buildLsiRotinasPayload_(e) {
       seenDates.add(iso);
       availableDates.push(iso);
     }
-    if (iso === selectedDateIso && targetColumn < 0) targetColumn = idx + 9;
+    if (!columnsByDate.has(iso)) columnsByDate.set(iso, []);
+    columnsByDate.get(iso).push(idx + 9);
   });
+  const previousDate = new Date(selectedDate);
+  previousDate.setDate(previousDate.getDate() - 1);
+  previousDate.setHours(0, 0, 0, 0);
+  const previousDateIso = toIsoDate_(previousDate);
+  const selectedColumns = columnsByDate.get(selectedDateIso) || [];
+  const previousColumns = columnsByDate.get(previousDateIso) || [];
 
   const cronogramas = [
     { id: "salas", label: "Limpeza de Salas", startRow: 7, endRow: 470 },
@@ -1837,12 +2219,11 @@ function buildLsiRotinasPayload_(e) {
   for (const bloco of cronogramas) {
     const rowCount = bloco.endRow - bloco.startRow + 1;
     const baseRows = sheet.getRange(bloco.startRow, 2, rowCount, 6).getValues();
-    const readRows = targetColumn > 0
-      ? sheet.getRange(bloco.startRow, targetColumn, rowCount, 1).getValues()
-      : baseRows.map(() => [""]);
+    const readRows = sheet.getRange(bloco.startRow, 9, rowCount, lastCol - 8).getValues();
 
     for (let idx = 0; idx < baseRows.length; idx++) {
       const row = baseRows[idx] || [];
+      const readRow = readRows[idx] || [];
       scanned++;
 
       const ambiente = String(row[0] == null ? "" : row[0]).trim();
@@ -1851,9 +2232,12 @@ function buildLsiRotinasPayload_(e) {
       const dayCodes = parseDayList_(row[3]);
       const frequencyCode = Math.floor(toNumber_(row[4]));
       const turnos = parseTurnList_(row[5]);
-      const actual = Math.max(0, toNumber_(readRows[idx] && readRows[idx][0]));
+      const currentReadValues = selectedColumns.map((column) => readRow[column - 9]);
+      const previousReadValues = previousColumns.map((column) => readRow[column - 9]);
+      const useNightShiftRule = bloco.id === "banheiros" && turnos.indexOf("T1") >= 0;
+      const actual = countOperationalDayReads_(currentReadValues, previousReadValues, useNightShiftRule);
       const dueToday = isScheduledToday_(dayCodes, frequencyCode);
-      const expected = expectedReads_(frequencyCode, dueToday);
+      const expected = expectedReads_(frequencyCode, dueToday, turnos);
       const status = statusFromCounts_(actual, expected);
       const rowNumber = bloco.startRow + idx;
 
@@ -1952,7 +2336,7 @@ function buildLsiRotinasPayload_(e) {
       scanned,
       kept,
       ignoredOnDemand,
-      selectedDateFound: targetColumn > 0,
+      selectedDateFound: selectedColumns.length > 0,
       sheet: sheet.getName()
     }
   };
@@ -1966,6 +2350,7 @@ function doGet(e) {
   let payload;
   if (view === "prog_sem") payload = buildProgSemPayload_(e);
   else if (view === "lsi_rotinas") payload = buildLsiRotinasPayload_(e);
+  else if (view === "cliente_os") payload = buildClientOsPayload_(e);
   else payload = buildDashboardPayload_();
   const cb = e && e.parameter ? e.parameter.callback : "";
   if (cb) {
