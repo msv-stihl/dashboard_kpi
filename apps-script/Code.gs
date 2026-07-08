@@ -1813,6 +1813,7 @@ function buildProgSemPayload_(e) {
     estado_os: 7,
     duracao_prevista: 8,
     procedimento: 10,
+    tipo_servico: 11,
     turno_previsto: 13,
     data_prevista: 15
   };
@@ -1880,6 +1881,7 @@ function buildProgSemPayload_(e) {
     const description = String(descriptionRaw == null ? "" : descriptionRaw).trim();
 
     const exec = parseExecutantes_(row[COL.procedimento]);
+    const tipoServico = Number(row[COL.tipo_servico] || 0);
 
     const hh = parseHours_(row[COL.duracao_prevista]);
 
@@ -1891,6 +1893,7 @@ function buildProgSemPayload_(e) {
       description,
       hh,
       exec,
+      tipoServico,
       estado,
       status: statusFromEstado(estado),
       resources: []

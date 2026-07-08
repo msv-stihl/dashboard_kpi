@@ -417,6 +417,19 @@
     padding:2px 8px;
     white-space:nowrap;
   }
+  .order-badge{
+    font-size:10px;
+    font-family:var(--font-body);
+    font-weight:700;
+    letter-spacing:.02em;
+    text-transform:uppercase;
+    color:var(--status-fg, var(--ink));
+    background:var(--chip-bg, var(--surface));
+    border:1px solid var(--chip-border, var(--border));
+    border-radius:999px;
+    padding:2px 8px;
+    white-space:nowrap;
+  }
   .resource-empty{ font-family:var(--font-mono); font-size:11px; color:var(--status-muted, var(--ink-faint)); }
 
   .day-empty{
@@ -757,6 +770,7 @@
       title: o.t,
       hh: o.hh,
       exec: o.ex,
+      tipoServico: Number(o?.ts ?? 1) || 1,
       status: o.st,
       resources: o.r,
     };
@@ -791,10 +805,19 @@
       description: String(o?.description ?? '').trim(),
       hh: Number(o?.hh ?? 0) || 0,
       exec: Number(o?.exec ?? 1) || 1,
+      tipoServico: Number(o?.tipoServico ?? 0) || 0,
       estado: Number(o?.estado ?? 0) || 0,
       status: String(o?.status ?? 'pending'),
       resources: Array.isArray(o?.resources) ? o.resources.map(r=>String(r ?? '').trim()).filter(Boolean) : [],
     };
+  }
+
+  function getOrderBadgeLabel(order){
+    const estado = Number(order?.estado ?? 0);
+    if(estado === 30) return 'Avaliação';
+    const tipoServico = Number(order?.tipoServico ?? 0);
+    if(!Number.isFinite(tipoServico) || tipoServico <= 0) return '';
+    return tipoServico > 3 ? 'Corretiva' : 'Preventiva';
   }
 
   function getOrderVisual(order){
@@ -822,6 +845,18 @@
         detailBg:'rgba(255,255,255,.34)',
         detailBorder:'rgba(26,30,34,.08)',
         chipBg:'rgba(255,255,255,.5)',
+        chipBorder:'rgba(26,30,34,.1)'
+      };
+    }
+    if(estado === 30 && isPast){
+      return {
+        accent:'#D9605A',
+        bg:'#F7C3BD',
+        fg:'#1A1E22',
+        muted:'rgba(26,30,34,.72)',
+        detailBg:'rgba(255,255,255,.38)',
+        detailBorder:'rgba(26,30,34,.08)',
+        chipBg:'rgba(255,255,255,.56)',
         chipBorder:'rgba(26,30,34,.1)'
       };
     }
@@ -1221,6 +1256,7 @@
           dayOrders.forEach(o=>{
             const status = STATUS[o.status];
             const visual = getOrderVisual(o);
+            const badgeLabel = getOrderBadgeLabel(o);
             const row = document.createElement('div');
             row.className = 'os-row' + (o.description ? ' has-details' : '');
             row.style.setProperty('--status-color', visual.accent || status.color);
@@ -1242,6 +1278,7 @@
                 '<span class="os-title">'+o.title+'</span>'+
               '</div>'+
               '<div class="os-meta">'+
+                (badgeLabel ? '<span class="order-badge">'+badgeLabel+'</span>' : '')+
                 '<span class="os-hh">'+fmtHH(o.hh)+'</span>'+
                 '<span class="os-exec">'+o.exec+' exec.</span>'+
                 '<div class="os-resources">'+resourcesHtml+'</div>'+
