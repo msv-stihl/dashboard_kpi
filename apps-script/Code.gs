@@ -1032,7 +1032,8 @@ function buildUtilidadesPayload_(ss) {
     preventivas: normalizePercent_(getA1_(ss, "dash", "B93")),
     atendimentoZUS: {
       labels,
-      series: [{ name: "Utilidades", data: values, color: "#2f80ed" }]
+      series: [{ name: "Utilidades", data: values, color: "#2f80ed" }],
+      limit: 2
     },
     produtividadePorColaborador: pcParsed
   };
@@ -1067,7 +1068,8 @@ function buildSpciPayload_(ss) {
     preventivas: normalizePercent_(getA1_(ss, "dash", "B94")),
     atendimentoZUS: {
       labels,
-      series: [{ name: "SPCI", data: values, color: "#2e2e2e" }]
+      series: [{ name: "SPCI", data: values, color: "#2e2e2e" }],
+      limit: 2
     },
     produtividadePorColaborador: pcParsed
   };
@@ -1548,6 +1550,7 @@ function buildDashboardPayload_() {
     const pcParsed = parseProdColab_(prodColab || []);
     const filteredZuSeries = zuParsed.series.filter((s) => !isSpciLabel_(s.name));
     const filteredPrioPairs = prioPairs.filter((p) => !isSpciLabel_(p.label));
+    const filteredAvalPairs = avalPairs.filter((p) => !isSpciLabel_(p.label));
 
     return {
       updatedAt: last,
@@ -1573,8 +1576,8 @@ function buildDashboardPayload_() {
           colors: []
         },
         avaliacoes: {
-          labels: avalPairs.map((p) => p.label),
-          values: avalPairs.map((p) => Number(p.value ?? 0)),
+          labels: filteredAvalPairs.map((p) => p.label),
+          values: filteredAvalPairs.map((p) => Number(p.value ?? 0)),
           colors: []
         },
         produtividadePorColaborador: pcParsed
@@ -1642,6 +1645,7 @@ function buildDashboardPayload_() {
   const pcValues = getSheetValues_(ss, "facilities_prod_colab");
   const pcRows = pcValues ? asTable_(pcValues) : [];
   const paFilteredRows = paRows.filter((r) => !isSpciLabel_(r.label ?? r.nome ?? ""));
+  const avFilteredRows = avRows.filter((r) => !isSpciLabel_(r.label ?? r.nome ?? ""));
   const pcItems = pcRows.map((r) => ({
     name: String(r.name ?? r.nome ?? "").trim(),
     value: Number(r.value ?? r.valor ?? 0),
@@ -1674,9 +1678,9 @@ function buildDashboardPayload_() {
         colors: paFilteredRows.map((r) => String(r.color ?? r.cor ?? "")).filter((c) => c)
       },
       avaliacoes: {
-        labels: avRows.map((r) => String(r.label ?? r.nome ?? "")),
-        values: avRows.map((r) => Number(r.value ?? r.valor ?? 0)),
-        colors: avRows.map((r) => String(r.color ?? r.cor ?? "")).filter((c) => c)
+        labels: avFilteredRows.map((r) => String(r.label ?? r.nome ?? "")),
+        values: avFilteredRows.map((r) => Number(r.value ?? r.valor ?? 0)),
+        colors: avFilteredRows.map((r) => String(r.color ?? r.cor ?? "")).filter((c) => c)
       },
       produtividadePorColaborador: {
         labels: pcItems.map((item) => item.name),

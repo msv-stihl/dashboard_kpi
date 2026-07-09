@@ -242,6 +242,18 @@ body{
 .facilities-bottom{
   margin-top:18px;
 }
+.stack-lg{
+  display:grid;
+  gap:18px;
+}
+.facility-priority-row{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:18px;
+}
+.chart-card-full{
+  grid-column:1 / -1;
+}
 
 .card{
   background:var(--card);
@@ -441,6 +453,7 @@ body{
   .grid-3{grid-template-columns:1fr}
   .grid-main{grid-template-columns:1fr}
   .grid-bottom{grid-template-columns:1fr}
+  .facility-priority-row{grid-template-columns:1fr}
   .small-kpis{grid-template-columns:1fr}
   .cron-grid{grid-template-columns:1fr}
   .card-head{

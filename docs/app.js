@@ -63,7 +63,7 @@ function formatPercentValue(value) {
   return `${formatNumberPtBR(safe, { digits })}%`;
 }
 
-function getCollaboratorItems(metric) {
+function getCollaboratorItems(metric, { excludeSpci = true } = {}) {
   if (Array.isArray(metric?.items)) {
     return metric.items
       .map((item) => ({
@@ -71,7 +71,7 @@ function getCollaboratorItems(metric) {
         value: Number(item?.value ?? 0),
         team: normalizeTeamName(item?.team ?? "")
       }))
-      .filter((item) => item.name && Number.isFinite(item.value) && item.team !== "SPCI");
+      .filter((item) => item.name && Number.isFinite(item.value) && (!excludeSpci || item.team !== "SPCI"));
   }
 
   const labels = Array.isArray(metric?.labels) ? metric.labels : [];
@@ -84,7 +84,7 @@ function getCollaboratorItems(metric) {
       value: Number(values[idx] ?? 0),
       team: normalizeTeamName(teams[idx] ?? "")
     }))
-    .filter((item) => item.name && Number.isFinite(item.value) && item.team !== "SPCI");
+    .filter((item) => item.name && Number.isFinite(item.value) && (!excludeSpci || item.team !== "SPCI"));
 }
 
 function compareToTargetText(result, target) {
@@ -117,7 +117,116 @@ const doughnutCenterTextPlugin = {
   }
 };
 
-Chart.register(doughnutCenterTextPlugin);
+const zusThresholdPlugin = {
+  id: "zusThreshold",
+  beforeDatasetsDraw(chart, _args, pluginOptions) {
+    const limit = Number(pluginOptions?.limit);
+    const chartArea = chart?.chartArea;
+    const yScale = chart?.scales?.y;
+    if (!Number.isFinite(limit) || !chartArea || !yScale) return;
+
+    const thresholdY = yScale.getPixelForValue(limit);
+    if (!Number.isFinite(thresholdY) || thresholdY <= chartArea.top) return;
+
+    const fillBottom = Math.min(thresholdY, chartArea.bottom);
+    if (fillBottom <= chartArea.top) return;
+
+    const { ctx } = chart;
+    ctx.save();
+    ctx.fillStyle = pluginOptions?.backgroundColor || "rgba(255, 77, 79, 0.10)";
+    ctx.fillRect(chartArea.left, chartArea.top, chartArea.right - chartArea.left, fillBottom - chartArea.top);
+    ctx.restore();
+  },
+  afterDatasetsDraw(chart, _args, pluginOptions) {
+    const limit = Number(pluginOptions?.limit);
+    const chartArea = chart?.chartArea;
+    const yScale = chart?.scales?.y;
+    if (!Number.isFinite(limit) || !chartArea || !yScale) return;
+
+    const thresholdY = yScale.getPixelForValue(limit);
+    if (!Number.isFinite(thresholdY) || thresholdY < chartArea.top || thresholdY > chartArea.bottom) return;
+
+    const { ctx } = chart;
+    ctx.save();
+    ctx.strokeStyle = pluginOptions?.lineColor || "#d7263d";
+    ctx.lineWidth = pluginOptions?.lineWidth || 2;
+    ctx.beginPath();
+    ctx.moveTo(chartArea.left, thresholdY);
+    ctx.lineTo(chartArea.right, thresholdY);
+    ctx.stroke();
+    ctx.restore();
+  }
+};
+
+Chart.register(doughnutCenterTextPlugin, zusThresholdPlugin);
+
+function getZusLimit(metric, fallbackLimit = 2) {
+  const limit = Number(metric?.limit);
+  return Number.isFinite(limit) ? limit : fallbackLimit;
+}
+
+function getZusScaleMax(metric, { fallbackLimit = 2, minMax = 3 } = {}) {
+  const limit = getZusLimit(metric, fallbackLimit);
+  const series = Array.isArray(metric?.series) ? metric.series : [];
+  const maxValue = series.reduce((outerMax, item) => {
+    const seriesMax = (Array.isArray(item?.data) ? item.data : []).reduce(
+      (innerMax, value) => Math.max(innerMax, Number(value ?? 0)),
+      0
+    );
+    return Math.max(outerMax, seriesMax);
+  }, 0);
+  return Math.max(minMax, Math.ceil(Math.max(limit + 0.6, maxValue * 1.15, 1)));
+}
+
+function renderZusChart(canvasSelector, storeKey, metric, { defaultColor = "#333", fallbackLimit = 2, minMax = 3 } = {}) {
+  const ctx = qs(canvasSelector)?.getContext("2d");
+  if (!ctx) return;
+
+  const labels = Array.isArray(metric?.labels) ? metric.labels : [];
+  const series = Array.isArray(metric?.series) ? metric.series : [];
+  const limit = getZusLimit(metric, fallbackLimit);
+  const yMax = getZusScaleMax(metric, { fallbackLimit, minMax });
+  const datasets = series.map((item) => ({
+    type: "line",
+    label: item?.name ?? "",
+    data: Array.isArray(item?.data) ? item.data : [],
+    borderColor: item?.color ?? defaultColor,
+    backgroundColor: item?.color ?? defaultColor,
+    pointRadius: 2,
+    pointHoverRadius: 4,
+    borderWidth: 2,
+    tension: 0.35
+  }));
+
+  const chart = new Chart(ctx, {
+    type: "line",
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } },
+        zusThreshold: {
+          limit,
+          backgroundColor: "rgba(255, 77, 79, 0.12)",
+          lineColor: "#d7263d",
+          lineWidth: 2
+        }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: "#111" } },
+        y: {
+          beginAtZero: true,
+          max: yMax,
+          grid: { color: "rgba(0,0,0,.08)" },
+          ticks: { color: "#111" }
+        }
+      }
+    }
+  });
+
+  store.charts.set(storeKey, chart);
+}
 
 function sampleData() {
   return {
@@ -189,7 +298,8 @@ function sampleData() {
         labels: ["01/06", "02/06", "03/06", "04/06", "05/06"],
         series: [
           { name: "Utilidades", color: "#2f80ed", data: [1.2, 1.1, 1.4, 1.0, 0.9] }
-        ]
+        ],
+        limit: 2
       },
       produtividadePorColaborador: {
         items: [
@@ -213,7 +323,8 @@ function sampleData() {
         labels: ["01/06", "02/06", "03/06", "04/06", "05/06"],
         series: [
           { name: "SPCI", color: "#2e2e2e", data: [0.7, 0.8, 1.0, 0.9, 0.6] }
-        ]
+        ],
+        limit: 2
       },
       produtividadePorColaborador: {
         items: [
@@ -513,20 +624,21 @@ function mountFacilities(host, data) {
     mkpi("Preventivas", `${formatMetricValue(f?.preventivas ?? 0)}%`)
   );
 
-  const chartsTop = el("div", { class: "grid-3" });
-  const left = el("div", { class: "card" }, [
+  const layout = el("div", { class: "stack-lg" });
+  const zusCard = el("div", { class: "card chart-card-full" }, [
     el("div", { class: "card-title", text: "Atendimento ZUS" }),
     el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartAtendimentoZUS" })])
   ]);
-  const mid = el("div", { class: "card" }, [
+  const metricsRow = el("div", { class: "facility-priority-row" });
+  const priorityCard = el("div", { class: "card" }, [
     el("div", { class: "card-title", text: "Prioridade alta" }),
     el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartPrioridadeAlta" })])
   ]);
-  const right = el("div", { class: "card" }, [
+  const evaluationsCard = el("div", { class: "card" }, [
     el("div", { class: "card-title", text: "Avaliações" }),
     el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartAvaliacoes" })])
   ]);
-  chartsTop.append(left, mid, right);
+  metricsRow.append(priorityCard, evaluationsCard);
 
   const bottom = el("div", { class: "facilities-bottom" });
   const filterBar = el("div", { class: "filter-chips" });
@@ -542,39 +654,12 @@ function mountFacilities(host, data) {
   ]);
 
   bottom.append(prodColab);
+  layout.append(zusCard, metricsRow, bottom);
 
-  host.append(kpis, chartsTop, bottom);
+  host.append(kpis, layout);
 
   const az = f?.atendimentoZUS ?? {};
-  const azLabels = Array.isArray(az.labels) ? az.labels : [];
-  const azSeries = Array.isArray(az.series) ? az.series : [];
-
-  const ctx1 = qs("#chartAtendimentoZUS")?.getContext("2d");
-  if (ctx1) {
-    const datasets = azSeries.map((s) => ({
-      type: "line",
-      label: s?.name ?? "",
-      data: Array.isArray(s?.data) ? s.data : [],
-      borderColor: s?.color ?? "#333",
-      backgroundColor: s?.color ?? "#333",
-      pointRadius: 2,
-      tension: 0.35
-    }));
-    const chart = new Chart(ctx1, {
-      type: "line",
-      data: { labels: azLabels, datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } } },
-        scales: {
-          x: { grid: { display: false }, ticks: { color: "#111" } },
-          y: { min: 0, max: 3, grid: { color: "rgba(0,0,0,.08)" }, ticks: { color: "#111" } }
-        }
-      }
-    });
-    store.charts.set("chartAtendimentoZUS", chart);
-  }
+  renderZusChart("#chartAtendimentoZUS", "chartAtendimentoZUS", az, { defaultColor: "#333", fallbackLimit: 2, minMax: 3 });
 
   const pa = f?.prioridadeAlta ?? {};
   const paLabels = Array.isArray(pa.labels) ? pa.labels : [];
@@ -754,21 +839,16 @@ function mountUtilidades(host, data) {
   kpis.append(
     mkpi("TMA em dias", formatNumberPtBR(u?.tmaDays ?? 0, { digits: 1 })),
     mkpi("Produtividade", `${formatNumberPtBR(u?.productivityPct ?? 0)}%`),
+    mkpi("Avaliações", formatMetricValue(u?.avaliacoes ?? 0)),
     mkpi("Retrabalho", `${formatNumberPtBR(u?.reworkPct ?? 0, { digits: 1 })}%`),
     mkpi("Preventivas", `${formatMetricValue(u?.preventivas ?? 0)}%`)
   );
 
-  const top = el("div", { class: "grid-2" });
-  const zusCard = el("div", { class: "card" }, [
+  const layout = el("div", { class: "stack-lg" });
+  const zusCard = el("div", { class: "card chart-card-full" }, [
     el("div", { class: "card-title", text: "Atendimento ZUS" }),
     el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartUtilidadesZUS" })])
   ]);
-  const avaliacoesCard = el("div", { class: "card mini-kpi" }, [
-    el("div", { class: "card-title", text: "Avaliações" }),
-    el("div", { class: "mini-value", text: formatMetricValue(u?.avaliacoes ?? 0) }),
-    el("div", { class: "kpi-foot", text: "Valor atual do indicador" })
-  ]);
-  top.append(zusCard, avaliacoesCard);
 
   const bottom = el("div", { class: "facilities-bottom" });
   const filterBar = el("div", { class: "filter-chips" });
@@ -784,47 +864,11 @@ function mountUtilidades(host, data) {
   ]);
   bottom.append(prodColab);
 
-  host.append(kpis, top, bottom);
+  layout.append(zusCard, bottom);
+  host.append(kpis, layout);
 
   const az = u?.atendimentoZUS ?? {};
-  const azLabels = Array.isArray(az.labels) ? az.labels : [];
-  const azSeries = Array.isArray(az.series) ? az.series : [];
-  const azMax = azSeries.reduce((max, series) => {
-    const seriesMax = (Array.isArray(series?.data) ? series.data : []).reduce((innerMax, value) => Math.max(innerMax, Number(value ?? 0)), 0);
-    return Math.max(max, seriesMax);
-  }, 0);
-
-  const ctx1 = qs("#chartUtilidadesZUS")?.getContext("2d");
-  if (ctx1) {
-    const datasets = azSeries.map((series) => ({
-      type: "line",
-      label: series?.name ?? "",
-      data: Array.isArray(series?.data) ? series.data : [],
-      borderColor: series?.color ?? "#2f80ed",
-      backgroundColor: series?.color ?? "#2f80ed",
-      pointRadius: 2,
-      tension: 0.35
-    }));
-    const chart = new Chart(ctx1, {
-      type: "line",
-      data: { labels: azLabels, datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } } },
-        scales: {
-          x: { grid: { display: false }, ticks: { color: "#111" } },
-          y: {
-            beginAtZero: true,
-            suggestedMax: azMax > 0 ? Math.ceil(azMax * 1.2) : 5,
-            grid: { color: "rgba(0,0,0,.08)" },
-            ticks: { color: "#111" }
-          }
-        }
-      }
-    });
-    store.charts.set("chartUtilidadesZUS", chart);
-  }
+  renderZusChart("#chartUtilidadesZUS", "chartUtilidadesZUS", az, { defaultColor: "#2f80ed", fallbackLimit: 2, minMax: 3 });
 
   const pc = u?.produtividadePorColaborador ?? {};
   const pcColor = pc?.color ?? "#2f66ff";
@@ -923,7 +967,7 @@ function mountSPCI(host, data) {
     SPCI: "#2e2e2e"
   };
   const fallbackPalette = ["#2e2e2e", "#2f80ed", "#f2994a", "#27ae60", "#9b51e0", "#eb5757", "#56ccf2"];
-  const collaboratorItems = getCollaboratorItems(u?.produtividadePorColaborador ?? {});
+  const collaboratorItems = getCollaboratorItems(u?.produtividadePorColaborador ?? {}, { excludeSpci: false });
   const uniqueTeams = Array.from(new Set(collaboratorItems.map((item) => item.team).filter(Boolean)));
   const teamColors = { ...baseTeamColors };
 
@@ -946,21 +990,16 @@ function mountSPCI(host, data) {
   kpis.append(
     mkpi("TMA em dias", formatNumberPtBR(u?.tmaDays ?? 0, { digits: 1 })),
     mkpi("Produtividade", `${formatNumberPtBR(u?.productivityPct ?? 0)}%`),
+    mkpi("Avaliações", formatMetricValue(u?.avaliacoes ?? 0)),
     mkpi("Retrabalho", `${formatNumberPtBR(u?.reworkPct ?? 0, { digits: 1 })}%`),
     mkpi("Preventivas", `${formatMetricValue(u?.preventivas ?? 0)}%`)
   );
 
-  const top = el("div", { class: "grid-2" });
-  const zusCard = el("div", { class: "card" }, [
+  const layout = el("div", { class: "stack-lg" });
+  const zusCard = el("div", { class: "card chart-card-full" }, [
     el("div", { class: "card-title", text: "Atendimento ZUS" }),
     el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartSpciZUS" })])
   ]);
-  const avaliacoesCard = el("div", { class: "card mini-kpi" }, [
-    el("div", { class: "card-title", text: "Avaliações" }),
-    el("div", { class: "mini-value", text: formatMetricValue(u?.avaliacoes ?? 0) }),
-    el("div", { class: "kpi-foot", text: "Valor atual do indicador" })
-  ]);
-  top.append(zusCard, avaliacoesCard);
 
   const bottom = el("div", { class: "facilities-bottom" });
   const filterBar = el("div", { class: "filter-chips" });
@@ -976,47 +1015,11 @@ function mountSPCI(host, data) {
   ]);
   bottom.append(prodColab);
 
-  host.append(kpis, top, bottom);
+  layout.append(zusCard, bottom);
+  host.append(kpis, layout);
 
   const az = u?.atendimentoZUS ?? {};
-  const azLabels = Array.isArray(az.labels) ? az.labels : [];
-  const azSeries = Array.isArray(az.series) ? az.series : [];
-  const azMax = azSeries.reduce((max, series) => {
-    const seriesMax = (Array.isArray(series?.data) ? series.data : []).reduce((innerMax, value) => Math.max(innerMax, Number(value ?? 0)), 0);
-    return Math.max(max, seriesMax);
-  }, 0);
-
-  const ctx1 = qs("#chartSpciZUS")?.getContext("2d");
-  if (ctx1) {
-    const datasets = azSeries.map((series) => ({
-      type: "line",
-      label: series?.name ?? "",
-      data: Array.isArray(series?.data) ? series.data : [],
-      borderColor: series?.color ?? "#2e2e2e",
-      backgroundColor: series?.color ?? "#2e2e2e",
-      pointRadius: 2,
-      tension: 0.35
-    }));
-    const chart = new Chart(ctx1, {
-      type: "line",
-      data: { labels: azLabels, datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } } },
-        scales: {
-          x: { grid: { display: false }, ticks: { color: "#111" } },
-          y: {
-            beginAtZero: true,
-            suggestedMax: azMax > 0 ? Math.ceil(azMax * 1.2) : 5,
-            grid: { color: "rgba(0,0,0,.08)" },
-            ticks: { color: "#111" }
-          }
-        }
-      }
-    });
-    store.charts.set("chartSpciZUS", chart);
-  }
+  renderZusChart("#chartSpciZUS", "chartSpciZUS", az, { defaultColor: "#2e2e2e", fallbackLimit: 2, minMax: 3 });
 
   const pc = u?.produtividadePorColaborador ?? {};
   const pcColor = pc?.color ?? "#2f66ff";
@@ -1169,31 +1172,8 @@ function mountLSI(host, data) {
 
   host.append(zusCard, cronTitle, cronGrid, effTitle, effGrid);
 
-  const ctxZus = qs("#chartLsiAtendimentoZUS")?.getContext("2d");
-  if (ctxZus && azLabels.length && azSeries.length) {
-    const datasets = azSeries.map((series) => ({
-      type: "line",
-      label: series?.name ?? "",
-      data: Array.isArray(series?.data) ? series.data : [],
-      borderColor: series?.color ?? "#333",
-      backgroundColor: series?.color ?? "#333",
-      pointRadius: 2,
-      tension: 0.35
-    }));
-    const chart = new Chart(ctxZus, {
-      type: "line",
-      data: { labels: azLabels, datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12 } } },
-        scales: {
-          x: { grid: { display: false }, ticks: { color: "#111" } },
-          y: { min: 0, max: 3, grid: { color: "rgba(0,0,0,.08)" }, ticks: { color: "#111" } }
-        }
-      }
-    });
-    store.charts.set("chartLsiAtendimentoZUS", chart);
+  if (azLabels.length && azSeries.length) {
+    renderZusChart("#chartLsiAtendimentoZUS", "chartLsiAtendimentoZUS", az, { defaultColor: "#333", fallbackLimit: 2, minMax: 3 });
   }
 
   const eficaciaColors = {
