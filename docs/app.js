@@ -688,11 +688,15 @@ function mountFacilities(host, data) {
     el("div", { class: "card-title", text: "Prioridade alta" }),
     el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartPrioridadeAlta" })])
   ]);
+  const portasRapidasCard = el("div", { class: "card" }, [
+    el("div", { class: "card-title", text: "Portas rápidas pendentes" }),
+    el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartPortasRapidasPendentes" })])
+  ]);
   const evaluationsCard = el("div", { class: "card" }, [
     el("div", { class: "card-title", text: "Avaliações" }),
     el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartAvaliacoes" })])
   ]);
-  metricsRow.append(priorityCard, evaluationsCard);
+  metricsRow.append(priorityCard, portasRapidasCard, evaluationsCard);
 
   const bottom = el("div", { class: "facilities-bottom" });
   const filterBar = el("div", { class: "filter-chips" });
@@ -745,6 +749,38 @@ function mountFacilities(host, data) {
       }
     });
     store.charts.set("chartPrioridadeAlta", chart);
+  }
+
+  const prp = f?.portasRapidasPendentes ?? {};
+  const prpLabels = Array.isArray(prp.labels) ? prp.labels : [];
+  const prpValues = Array.isArray(prp.values) ? prp.values : [];
+  const prpColors = Array.isArray(prp.colors) ? prp.colors : [];
+
+  const ctxPortasRapidas = qs("#chartPortasRapidasPendentes")?.getContext("2d");
+  if (ctxPortasRapidas) {
+    const chart = new Chart(ctxPortasRapidas, {
+      type: "bar",
+      data: {
+        labels: prpLabels,
+        datasets: [
+          {
+            label: "",
+            data: prpValues,
+            backgroundColor: prpColors.length ? prpColors : "#ff4d00"
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, ticks: { color: "#111" } },
+          y: { beginAtZero: true, grid: { color: "rgba(0,0,0,.08)" }, ticks: { color: "#111" } }
+        }
+      }
+    });
+    store.charts.set("chartPortasRapidasPendentes", chart);
   }
 
   const av = f?.avaliacoes ?? {};

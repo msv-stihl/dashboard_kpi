@@ -340,12 +340,23 @@ function parseDateForSheet_(value) {
   if (typeof value === "number") {
     const n = value;
     if (!Number.isFinite(n)) return "";
+    if (n > 0 && n < 100000) {
+      const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+      return new Date(excelEpoch.getTime() + n * 24 * 60 * 60 * 1000);
+    }
     if (n > 1e12) return new Date(n);
     if (n > 1e9) return new Date(n * 1000);
     return "";
   }
   if (typeof value !== "string") return "";
   const s = value.trim();
+  if (/^\d{4,5}(?:[.,]\d+)?$/.test(s)) {
+    const serial = Number(s.replace(",", "."));
+    if (Number.isFinite(serial) && serial > 0) {
+      const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+      return new Date(excelEpoch.getTime() + serial * 24 * 60 * 60 * 1000);
+    }
+  }
   const m1 = s.match(/\/Date\((-?\d+)([+-]\d{4})?\)\//i) || s.match(/Date\((-?\d+)([+-]\d{4})?\)/i);
   if (m1) {
     const ms = Number(m1[1]);
@@ -1128,9 +1139,10 @@ function matchesTokenInText_(text, token) {
 function buildClientOsMatchFromRow_(sheet, rowNumber, matchField) {
   if (!sheet || !rowNumber || rowNumber < 2) return null;
 
-  const headers = sheet.getRange(1, 1, 1, 20).getValues()[0] || [];
+  const readColumnCount = Math.max(20, Math.min(sheet.getLastColumn(), 32));
+  const headers = sheet.getRange(1, 1, 1, readColumnCount).getValues()[0] || [];
   const colSpecs = buildColSpecs_(headers);
-  const row = sheet.getRange(rowNumber, 1, 1, 20).getValues()[0] || [];
+  const row = sheet.getRange(rowNumber, 1, 1, readColumnCount).getValues()[0] || [];
   const record = {};
 
   for (let c = 0; c < colSpecs.length; c++) {
@@ -1144,8 +1156,61 @@ function buildClientOsMatchFromRow_(sheet, rowNumber, matchField) {
   const estadoRaw = valueFromRecord_(record, "c7");
   const prioridadeRaw = valueFromRecord_(record, "c9");
   const dataAberturaRaw = valueFromRecord_(record, "c16");
-  const dataPrevistaRaw = valueFromRecord_(record, "c17");
-  const dataFechamentoRaw = valueFromRecord_(record, "c19");
+  let dataPrevistaRaw = valueFromRecord_(record, "c17");
+  let dataFechamentoRaw = valueFromRecord_(record, "c19");
+  const colunaO = row[14];
+  const colunaP = row[15];
+  const colunaR = row[17];
+  const colunaAC = row[28];
+  const colunaAD = row[29];
+  const colunaAF = row[31];
+  let dataAberturaFinal = formatDatePtBrOnly_(dataAberturaRaw);
+  const dataPrevistaMapeada = formatDatePtBrOnly_(dataPrevistaRaw);
+  const dataFechamentoMapeado = formatDatePtBrOnly_(dataFechamentoRaw);
+  const parOP = {
+    abertura: formatDatePtBrOnly_(colunaO),
+    prevista: formatDatePtBrOnly_(colunaP),
+    fechamento: formatDatePtBrOnly_(colunaR),
+    aberturaRaw: colunaO,
+    previstaRaw: colunaP,
+    fechamentoRaw: colunaR,
+  };
+  const parADAF = {
+    abertura: formatDatePtBrOnly_(colunaAD),
+    prevista: formatDatePtBrOnly_(colunaAF),
+    fechamento: formatDatePtBrOnly_(colunaAC),
+    aberturaRaw: colunaAD,
+    previstaRaw: colunaAF,
+    fechamentoRaw: colunaAC,
+  };
+
+  if (!dataPrevistaMapeada) {
+    if (dataAberturaFinal && dataAberturaFinal === parOP.abertura && parOP.prevista) {
+      dataPrevistaRaw = parOP.previstaRaw;
+    } else if (dataAberturaFinal && dataAberturaFinal === parADAF.abertura && parADAF.prevista) {
+      dataPrevistaRaw = parADAF.previstaRaw;
+    } else if (parOP.abertura && parOP.prevista) {
+      dataAberturaFinal = parOP.abertura;
+      dataPrevistaRaw = parOP.previstaRaw;
+    } else if (parADAF.abertura && parADAF.prevista) {
+      dataAberturaFinal = parADAF.abertura;
+      dataPrevistaRaw = parADAF.previstaRaw;
+    }
+  }
+
+  if (!dataFechamentoMapeado) {
+    if (dataAberturaFinal && dataAberturaFinal === parOP.abertura && parOP.fechamento) {
+      dataFechamentoRaw = parOP.fechamentoRaw;
+    } else if (dataAberturaFinal && dataAberturaFinal === parADAF.abertura && parADAF.fechamento) {
+      dataFechamentoRaw = parADAF.fechamentoRaw;
+    } else if (parOP.abertura && parOP.fechamento) {
+      dataAberturaFinal = parOP.abertura;
+      dataFechamentoRaw = parOP.fechamentoRaw;
+    } else if (parADAF.abertura && parADAF.fechamento) {
+      dataAberturaFinal = parADAF.abertura;
+      dataFechamentoRaw = parADAF.fechamentoRaw;
+    }
+  }
 
   return {
     score: matchField === "c0" ? 300 : matchField === "c1" ? 250 : 100,
@@ -1157,7 +1222,7 @@ function buildClientOsMatchFromRow_(sheet, rowNumber, matchField) {
     descricao: String(c6Value == null ? "" : c6Value).trim(),
     estadoCodigo: Math.floor(toNumber_(estadoRaw)),
     prioridadeCodigo: Math.floor(toNumber_(prioridadeRaw)),
-    dataAbertura: formatDatePtBrOnly_(dataAberturaRaw),
+    dataAbertura: dataAberturaFinal,
     dataPrevista: formatDatePtBrOnly_(dataPrevistaRaw),
     dataFechamento: formatDatePtBrOnly_(dataFechamentoRaw)
   };
@@ -1551,6 +1616,7 @@ function buildDashboardPayload_() {
     const prod = getA1_(ss, "dash", "B22");
     const retrabalho = getA1_(ss, "dash", "B81");
     const servExt = getA1_(ss, "dash", "B86");
+    const portasRapidasPendentes = getA1_(ss, "dash", "E86");
     const preventivas = getA1_(ss, "dash", "B92");
     const zu = getRangeA1_(ss, "dash", "A24:AF27");
     const prio = getRangeA1_(ss, "dash", "A32:B36");
@@ -1587,6 +1653,11 @@ function buildDashboardPayload_() {
           labels: filteredPrioPairs.map((p) => p.label),
           values: filteredPrioPairs.map((p) => Number(p.value ?? 0)),
           colors: []
+        },
+        portasRapidasPendentes: {
+          labels: ["Pendentes"],
+          values: [Number(portasRapidasPendentes ?? 0)],
+          colors: ["#ff4d00"]
         },
         avaliacoes: {
           labels: filteredAvalPairs.map((p) => p.label),
@@ -1659,6 +1730,15 @@ function buildDashboardPayload_() {
   const pcRows = pcValues ? asTable_(pcValues) : [];
   const paFilteredRows = paRows.filter((r) => !isSpciLabel_(r.label ?? r.nome ?? ""));
   const avFilteredRows = avRows.filter((r) => !isSpciLabel_(r.label ?? r.nome ?? ""));
+  const portasRapidasPendentes = Number(
+    fk.portasRapidasPendentes ??
+    fk.portas_rapidas_pendentes ??
+    fk.portasRapidas ??
+    fk.portas_rapidas ??
+    fk.portasRapidasPendente ??
+    fk.portas_rapidas_pendente ??
+    0
+  );
   const pcItems = pcRows.map((r) => ({
     name: String(r.name ?? r.nome ?? "").trim(),
     value: Number(r.value ?? r.valor ?? 0),
@@ -1689,6 +1769,11 @@ function buildDashboardPayload_() {
         labels: paFilteredRows.map((r) => String(r.label ?? r.nome ?? "")),
         values: paFilteredRows.map((r) => Number(r.value ?? r.valor ?? 0)),
         colors: paFilteredRows.map((r) => String(r.color ?? r.cor ?? "")).filter((c) => c)
+      },
+      portasRapidasPendentes: {
+        labels: ["Pendentes"],
+        values: [portasRapidasPendentes],
+        colors: ["#ff4d00"]
       },
       avaliacoes: {
         labels: avFilteredRows.map((r) => String(r.label ?? r.nome ?? "")),
