@@ -1128,25 +1128,38 @@ function matchesTokenInText_(text, token) {
 function buildClientOsMatchFromRow_(sheet, rowNumber, matchField) {
   if (!sheet || !rowNumber || rowNumber < 2) return null;
 
+  const headers = sheet.getRange(1, 1, 1, 20).getValues()[0] || [];
+  const colSpecs = buildColSpecs_(headers);
   const row = sheet.getRange(rowNumber, 1, 1, 20).getValues()[0] || [];
-  const c0 = String(row[0] == null ? "" : row[0]).trim();
-  const c1 = String(row[1] == null ? "" : row[1]).trim();
-  const c5 = String(row[5] == null ? "" : row[5]).trim();
-  const c6 = String(row[6] == null ? "" : row[6]).trim();
+  const record = {};
+
+  for (let c = 0; c < colSpecs.length; c++) {
+    record[colSpecs[c].field] = row[c];
+  }
+
+  const c0Value = valueFromRecord_(record, "c0");
+  const c1Value = valueFromRecord_(record, "c1");
+  const c5Value = valueFromRecord_(record, "c5");
+  const c6Value = valueFromRecord_(record, "c6");
+  const estadoRaw = valueFromRecord_(record, "c7");
+  const prioridadeRaw = valueFromRecord_(record, "c9");
+  const dataAberturaRaw = valueFromRecord_(record, "c16");
+  const dataPrevistaRaw = valueFromRecord_(record, "c17");
+  const dataFechamentoRaw = valueFromRecord_(record, "c19");
 
   return {
     score: matchField === "c0" ? 300 : matchField === "c1" ? 250 : 100,
     rowNumber,
     matchField,
-    numeroOs: c0,
-    osCliente: c1,
-    titulo: c5,
-    descricao: c6,
-    estadoCodigo: Math.floor(toNumber_(row[7])),
-    prioridadeCodigo: Math.floor(toNumber_(row[9])),
-    dataAbertura: formatDatePtBrOnly_(row[16]),
-    dataPrevista: formatDatePtBrOnly_(row[17]),
-    dataFechamento: formatDatePtBrOnly_(row[19])
+    numeroOs: String(c0Value == null ? "" : c0Value).trim(),
+    osCliente: String(c1Value == null ? "" : c1Value).trim(),
+    titulo: String(c5Value == null ? "" : c5Value).trim(),
+    descricao: String(c6Value == null ? "" : c6Value).trim(),
+    estadoCodigo: Math.floor(toNumber_(estadoRaw)),
+    prioridadeCodigo: Math.floor(toNumber_(prioridadeRaw)),
+    dataAbertura: formatDatePtBrOnly_(dataAberturaRaw),
+    dataPrevista: formatDatePtBrOnly_(dataPrevistaRaw),
+    dataFechamento: formatDatePtBrOnly_(dataFechamentoRaw)
   };
 }
 

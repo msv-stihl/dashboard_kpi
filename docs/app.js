@@ -95,6 +95,19 @@ function compareToTargetText(result, target) {
   return `${formatNumberPtBR((res / tgt) * 100, { digits: 0 })}% da meta`;
 }
 
+function darkenColor(color, amount = 0.2) {
+  const value = String(color ?? "").trim();
+  const hex = value.replace("#", "");
+  if (!/^[0-9a-fA-F]{6}$/.test(hex)) return value || "#111";
+
+  const clampChannel = (channel) => Math.max(0, Math.min(255, Math.round(channel * (1 - amount))));
+  const r = clampChannel(parseInt(hex.slice(0, 2), 16));
+  const g = clampChannel(parseInt(hex.slice(2, 4), 16));
+  const b = clampChannel(parseInt(hex.slice(4, 6), 16));
+
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 const doughnutCenterTextPlugin = {
   id: "doughnutCenterText",
   afterDraw(chart, _args, pluginOptions) {
@@ -113,6 +126,41 @@ const doughnutCenterTextPlugin = {
     ctx.fillStyle = pluginOptions.color || "#111";
     ctx.font = pluginOptions.font || "600 22px Inter, system-ui, sans-serif";
     ctx.fillText(String(pluginOptions.text), x, y);
+    ctx.restore();
+  }
+};
+
+const doughnutTargetMarkerPlugin = {
+  id: "doughnutTargetMarker",
+  afterDraw(chart, _args, pluginOptions) {
+    const meta = chart.getDatasetMeta(0);
+    const firstArc = meta?.data?.[0];
+    const targetPct = Number(pluginOptions?.targetPct);
+    if (!firstArc || !Number.isFinite(targetPct)) return;
+
+    const clampedTarget = clamp(targetPct, 0, 100);
+    const angle = firstArc.startAngle + (firstArc.circumference * (clampedTarget / 100));
+    const strokeColor = pluginOptions?.color || "#111";
+    const lineWidth = Number(pluginOptions?.lineWidth) || 4;
+    const innerRadius = Math.max(0, (firstArc.innerRadius || 0) - 2);
+    const outerRadius = (firstArc.outerRadius || 0) + 2;
+    const x = firstArc.x;
+    const y = firstArc.y;
+
+    const startX = x + Math.cos(angle) * innerRadius;
+    const startY = y + Math.sin(angle) * innerRadius;
+    const endX = x + Math.cos(angle) * outerRadius;
+    const endY = y + Math.sin(angle) * outerRadius;
+
+    const { ctx } = chart;
+    ctx.save();
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
     ctx.restore();
   }
 };
@@ -158,7 +206,7 @@ const zusThresholdPlugin = {
   }
 };
 
-Chart.register(doughnutCenterTextPlugin, zusThresholdPlugin);
+Chart.register(doughnutCenterTextPlugin, doughnutTargetMarkerPlugin, zusThresholdPlugin);
 
 function getZusLimit(metric, fallbackLimit = 2) {
   const limit = Number(metric?.limit);
@@ -1207,6 +1255,11 @@ function mountLSI(host, data) {
           doughnutCenterText: {
             text: formatPercentValue(value),
             color: accentColor
+          },
+          doughnutTargetMarker: {
+            targetPct: 85,
+            color: darkenColor(accentColor, 0.3),
+            lineWidth: 4
           }
         }
       }
