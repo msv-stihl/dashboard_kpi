@@ -139,7 +139,13 @@ const doughnutTargetMarkerPlugin = {
     if (!firstArc || !Number.isFinite(targetPct)) return;
 
     const clampedTarget = clamp(targetPct, 0, 100);
-    const angle = firstArc.startAngle + (firstArc.circumference * (clampedTarget / 100));
+    const totalCircumference = (meta?.data || []).reduce(
+      (sum, arc) => sum + Number(arc?.circumference || 0),
+      0
+    );
+    if (!(totalCircumference > 0)) return;
+
+    const angle = firstArc.startAngle + (totalCircumference * (clampedTarget / 100));
     const strokeColor = pluginOptions?.color || "#111";
     const lineWidth = Number(pluginOptions?.lineWidth) || 4;
     const innerRadius = Math.max(0, (firstArc.innerRadius || 0) - 2);
