@@ -396,6 +396,11 @@
     background:var(--accent-soft);
     color:var(--accent);
   }
+  .chip.is-turno-verde{
+    background:rgba(154,216,114,.22);
+    color:#3F7A1A;
+    border:1px solid rgba(154,216,114,.48);
+  }
 
   .items{
     display:flex;
@@ -588,7 +593,8 @@
         cronograma: "all",
         turno: "all",
         status: "all"
-      }
+      },
+      previousReadings: new Map() // Map<ambiente, totalActual>
     };
 
     const backBtn = document.getElementById("backBtn");
@@ -661,6 +667,35 @@
       if(rank >= 2) return "red";
       if(rank === 1) return "yellow";
       return "green";
+    }
+
+    function getCurrentTurnos(){
+      const now = new Date();
+      const hours = now.getHours();
+      const minutes = now.getMinutes();
+      const totalMinutes = hours * 60 + minutes;
+
+      const turnos = [];
+
+      // T1: 22:35 - 06:00 (1355 - 360)
+      if (totalMinutes >= 1355 || totalMinutes < 360) turnos.push("T1");
+      // T2: 06:00 - 14:20 (360 - 860)
+      if (totalMinutes >= 360 && totalMinutes < 860) turnos.push("T2");
+      // T3: 14:20 - 22:35 (860 - 1355)
+      if (totalMinutes >= 860 && totalMinutes < 1355) turnos.push("T3");
+      // T2E: 06:00 - 15:48 (360 - 948)
+      if (totalMinutes >= 360 && totalMinutes < 948) turnos.push("T2E");
+      // T3E: 15:48 - 01:09 (948 - 69)
+      if (totalMinutes >= 948 || totalMinutes < 69) turnos.push("T3E");
+      // T2A: 07:30 - 17:18 (450 - 1038)
+      if (totalMinutes >= 450 && totalMinutes < 1038) turnos.push("T2A");
+
+      return turnos;
+    }
+
+    function hasReadingIncreased(ambiente, newActual){
+      const oldActual = state.previousReadings.get(ambiente) || 0;
+      return newActual > oldActual;
     }
 
     function fetchJsonp(urlString){
@@ -907,14 +942,22 @@
         return;
       }
 
+      const currentTurnos = getCurrentTurnos();
+
       cardsHost.innerHTML = ambientes.map((ambiente)=>{
         const meta = statusMeta(ambiente.status);
         const cronogramas = ambiente.cronogramas.length
           ? ambiente.cronogramas.map((label)=>'<span class="chip">' + escapeHtml(label) + '</span>').join("")
           : '<span class="chip">Sem cronograma</span>';
+        
+        const readingIncreased = hasReadingIncreased(ambiente.ambiente, ambiente.totalActual);
         const turnos = ambiente.turnos.length
-          ? ambiente.turnos.map((label)=>'<span class="chip">' + escapeHtml(label) + '</span>').join("")
+          ? ambiente.turnos.map((label)=>{
+              const isCurrentAndIncreased = readingIncreased && currentTurnos.includes(label);
+              return '<span class="chip' + (isCurrentAndIncreased ? ' is-turno-verde' : '') + '">' + escapeHtml(label) + '</span>';
+            }).join("")
           : '<span class="chip">Sem turno informado</span>';
+        
         const predio = ambiente.predio
           ? '<span class="chip is-predio">' + escapeHtml(ambiente.predio) + '</span>'
           : "";
@@ -1011,6 +1054,11 @@
           meta: { error: error?.message ? String(error.message) : "Falha ao carregar dados.", selectedDateFound: false }
         };
       } finally {
+        // Primeiro, calculamos os ambientes para salvar os valores atuais como "anteriores" para a próxima atualização
+        const ambientes = aggregateByEnvironment(filteredItems());
+        ambientes.forEach((ambiente) => {
+          state.previousReadings.set(ambiente.ambiente, ambiente.totalActual);
+        });
         setLoading(false);
         render();
       }
@@ -1061,6 +1109,13 @@
 
     dateFilter.value = todayIso;
     load(todayIso);
+
+    // Atualiza automaticamente a cada 10 minutos para verificar novas leituras
+    setInterval(() => {
+      if (!state.loading) {
+        load(state.filters.date || todayIso);
+      }
+    }, 600000);
   })();
   </script>
 </body>
