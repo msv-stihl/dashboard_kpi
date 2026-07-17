@@ -587,6 +587,41 @@
     today.setHours(0,0,0,0);
     const todayIso = toIsoDate(today);
 
+    // Chave para localStorage
+    const STORAGE_KEY = 'rotinas_limpeza_green_shifts';
+    const STORAGE_DATE_KEY = 'rotinas_limpeza_green_shifts_date';
+
+    // Obtém a data de hoje como string YYYY-MM-DD
+    const getTodayString = () => {
+      const today = new Date();
+      return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    };
+
+    // Estrutura para armazenar: { ambiente: { lastIncreaseTime: timestamp, activeShifts: ['T2', ...] } }
+    const getStoredGreenShifts = () => {
+      try {
+        const storedDate = localStorage.getItem(STORAGE_DATE_KEY);
+        const today = getTodayString();
+        
+        // Se a data armazenada é diferente de hoje, limpa os dados
+        if (storedDate && storedDate !== today) {
+          localStorage.removeItem(STORAGE_KEY);
+          localStorage.removeItem(STORAGE_DATE_KEY);
+          return {};
+        }
+
+        const stored = localStorage.getItem(STORAGE_KEY);
+        return stored ? JSON.parse(stored) : {};
+      } catch {
+        return {};
+      }
+    };
+
+    const saveGreenShifts = (data) => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      localStorage.setItem(STORAGE_DATE_KEY, getTodayString());
+    };
+
     const state = {
       payload: null,
       loading: false,
@@ -598,7 +633,8 @@
         turno: "all",
         status: "all"
       },
-      previousReadings: new Map() // Map<ambiente, totalActual>
+      previousReadings: new Map(), // Map<ambiente, totalActual>
+      greenShifts: getStoredGreenShifts() // Dados persistidos
     };
 
     const backBtn = document.getElementById("backBtn");
@@ -674,6 +710,16 @@
       return "green";
     }
 
+    // Definição dos turnos com seus intervalos em minutos (desde 00:00)
+    const SHIFT_DEFINITIONS = {
+      'T1': { start: 1355, end: 360, overnight: true }, // 22:35 - 06:00
+      'T2': { start: 360, end: 860, overnight: false }, // 06:00 - 14:20
+      'T3': { start: 860, end: 1355, overnight: false }, // 14:20 - 22:35
+      'T2E': { start: 360, end: 948, overnight: false }, // 06:00 - 15:48
+      'T3E': { start: 948, end: 69, overnight: true }, // 15:48 - 01:09
+      'T2A': { start: 450, end: 1038, overnight: false } // 07:30 - 17:18
+    };
+
     function getCurrentTurnos(){
       const now = new Date();
       const hours = now.getHours();
@@ -681,22 +727,39 @@
       const totalMinutes = hours * 60 + minutes;
 
       const turnos = [];
-
-      // T1: 22:35 - 06:00 (1355 - 360)
-      if (totalMinutes >= 1355 || totalMinutes < 360) turnos.push("T1");
-      // T2: 06:00 - 14:20 (360 - 860)
-      if (totalMinutes >= 360 && totalMinutes < 860) turnos.push("T2");
-      // T3: 14:20 - 22:35 (860 - 1355)
-      if (totalMinutes >= 860 && totalMinutes < 1355) turnos.push("T3");
-      // T2E: 06:00 - 15:48 (360 - 948)
-      if (totalMinutes >= 360 && totalMinutes < 948) turnos.push("T2E");
-      // T3E: 15:48 - 01:09 (948 - 69)
-      if (totalMinutes >= 948 || totalMinutes < 69) turnos.push("T3E");
-      // T2A: 07:30 - 17:18 (450 - 1038)
-      if (totalMinutes >= 450 && totalMinutes < 1038) turnos.push("T2A");
+      Object.entries(SHIFT_DEFINITIONS).forEach(([shiftName, shift]) => {
+        if (shift.overnight) {
+          if (totalMinutes >= shift.start || totalMinutes < shift.end) turnos.push(shiftName);
+        } else {
+          if (totalMinutes >= shift.start && totalMinutes < shift.end) turnos.push(shiftName);
+        }
+      });
 
       console.log("Horário atual:", `${hours}:${minutes.toString().padStart(2, '0')}`, "- Turnos ativos:", turnos);
       return turnos;
+    }
+
+    // Verifica se um tempo está dentro do período de um turno
+    function isTimeInRange(checkTimeMinutes, shift) {
+      if (shift.overnight) {
+        return checkTimeMinutes >= shift.start || checkTimeMinutes < shift.end;
+      } else {
+        return checkTimeMinutes >= shift.start && checkTimeMinutes < shift.end;
+      }
+    }
+
+    // Verifica se um turno deve ficar verde para um ambiente
+    function shouldShiftBeGreen(ambiente, shiftName) {
+      const data = state.greenShifts[ambiente];
+      if (!data) return false;
+
+      const now = new Date();
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      const shift = SHIFT_DEFINITIONS[shiftName];
+      if (!shift) return false;
+
+      // Verifica se o horário atual ainda está dentro do período do turno que estava ativo quando a leitura aumentou
+      return isTimeInRange(nowMinutes, shift) && data.activeShifts.includes(shiftName);
     }
 
     function hasReadingIncreased(ambiente, newActual){
@@ -950,19 +1013,17 @@
         return;
       }
 
-      const currentTurnos = getCurrentTurnos();
-
-      cardsHost.innerHTML = ambientes.map((ambiente)=>{
+      cardsHost.innerHTML = ambientes.map((ambiente) => {
         const meta = statusMeta(ambiente.status);
         const cronogramas = ambiente.cronogramas.length
-          ? ambiente.cronogramas.map((label)=>'<span class="chip">' + escapeHtml(label) + '</span>').join("")
+          ? ambiente.cronogramas.map((label) => '<span class="chip">' + escapeHtml(label) + '</span>').join("")
           : '<span class="chip">Sem cronograma</span>';
         
-        const readingIncreased = hasReadingIncreased(ambiente.ambiente, ambiente.totalActual);
         const turnos = ambiente.turnos.length
-          ? ambiente.turnos.map((label)=>{
-              const isCurrentAndIncreased = readingIncreased && currentTurnos.includes(label);
-              return '<span class="chip' + (isCurrentAndIncreased ? ' is-turno-verde' : '') + '">' + escapeHtml(label) + '</span>';
+          ? ambiente.turnos.map((label) => {
+              const isGreen = shouldShiftBeGreen(ambiente.ambiente, label);
+              console.log(`Ambiente ${ambiente.ambiente}, Turno ${label}: deve ficar verde? ${isGreen}`);
+              return '<span class="chip' + (isGreen ? ' is-turno-verde' : '') + '">' + escapeHtml(label) + '</span>';
             }).join("")
           : '<span class="chip">Sem turno informado</span>';
         
@@ -1062,6 +1123,26 @@
         // 2. Buscar novos dados
         const payload = await fetchPayload(dateIso);
         state.payload = payload && typeof payload === "object" ? payload : { items: [] };
+
+        // 3. Verificar quais ambientes tiveram aumento de leitura e atualizar greenShifts
+        const ambientesNovos = aggregateByEnvironment(filteredItems());
+        const currentShifts = getCurrentTurnos();
+        ambientesNovos.forEach((ambiente) => {
+          // Se é a primeira carga, apenas salva o valor inicial sem marcar como aumento
+          if (!state.previousReadings.has(ambiente.ambiente)) {
+            state.previousReadings.set(ambiente.ambiente, ambiente.totalActual);
+          } else if (hasReadingIncreased(ambiente.ambiente, ambiente.totalActual)) {
+            // Atualizar greenShifts para este ambiente
+            state.greenShifts[ambiente.ambiente] = {
+              lastIncreaseTime: Date.now(),
+              activeShifts: [...currentShifts]
+            };
+            console.log(`Atualizando greenShifts para ${ambiente.ambiente}:`, state.greenShifts[ambiente.ambiente]);
+          }
+        });
+        // Salvar no localStorage
+        saveGreenShifts(state.greenShifts);
+
       } catch (error){
         state.payload = {
           selectedDate: dateIso,
@@ -1072,9 +1153,9 @@
         };
       } finally {
         setLoading(false);
-        // 3. Renderizar (que compara novos dados com previousReadings salvos)
+        // 4. Renderizar
         render();
-        // 4. Salvar os novos valores como "anteriores" para a próxima atualização
+        // 5. Salvar os novos valores como "anteriores" para a próxima atualização
         const ambientesNovos = aggregateByEnvironment(filteredItems());
         ambientesNovos.forEach((ambiente) => {
           state.previousReadings.set(ambiente.ambiente, ambiente.totalActual);
