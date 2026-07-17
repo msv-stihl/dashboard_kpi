@@ -282,13 +282,16 @@
   .summary-card.is-red{border-color:rgba(217,96,90,.42);background:var(--red-bg)}
 
   .helper{
-    display:flex;
-    justify-content:space-between;
-    gap:14px;
-    align-items:center;
-    flex-wrap:wrap;
-    margin-bottom:14px;
-  }
+      display:flex;
+      justify-content:space-between;
+      gap:14px;
+      align-items:center;
+      flex-wrap:wrap;
+      margin-bottom:14px;
+    }
+    .helper .btn-clear{
+      flex-shrink:0;
+    }
   .helper strong{font-size:16px}
   .helper .sub{
     font-size:13px;
@@ -569,6 +572,7 @@
         <strong id="helperTitle">Ambientes</strong>
         <div class="sub" id="helperText">Filtre por data, cronograma, ambiente e turno.</div>
       </div>
+      <button class="btn-clear" id="refreshBtn" type="button">🔄 Atualizar Agora</button>
     </section>
 
     <section class="grid" id="cardsHost"></section>
@@ -608,6 +612,7 @@
     const turnoFilter = document.getElementById("turnoFilter");
     const statusButtons = document.getElementById("statusButtons");
     const clearFiltersBtn = document.getElementById("clearFiltersBtn");
+    const refreshBtn = document.getElementById("refreshBtn");
     const summaryHost = document.getElementById("summaryHost");
     const alertHost = document.getElementById("alertHost");
     const helperTitle = document.getElementById("helperTitle");
@@ -690,12 +695,15 @@
       // T2A: 07:30 - 17:18 (450 - 1038)
       if (totalMinutes >= 450 && totalMinutes < 1038) turnos.push("T2A");
 
+      console.log("Horário atual:", `${hours}:${minutes.toString().padStart(2, '0')}`, "- Turnos ativos:", turnos);
       return turnos;
     }
 
     function hasReadingIncreased(ambiente, newActual){
       const oldActual = state.previousReadings.get(ambiente) || 0;
-      return newActual > oldActual;
+      const increased = newActual > oldActual;
+      console.log(`Ambiente: ${ambiente} - Anterior: ${oldActual}, Novo: ${newActual} - Aumentou? ${increased}`);
+      return increased;
     }
 
     function fetchJsonp(urlString){
@@ -1043,6 +1051,15 @@
 
       setLoading(true);
       try{
+        // 1. Salvar os valores ANTERIORES antes de buscar novos dados (se já temos payload)
+        if (state.payload) {
+          const ambientesAnteriores = aggregateByEnvironment(filteredItems());
+          ambientesAnteriores.forEach((ambiente) => {
+            state.previousReadings.set(ambiente.ambiente, ambiente.totalActual);
+          });
+        }
+
+        // 2. Buscar novos dados
         const payload = await fetchPayload(dateIso);
         state.payload = payload && typeof payload === "object" ? payload : { items: [] };
       } catch (error){
@@ -1054,13 +1071,14 @@
           meta: { error: error?.message ? String(error.message) : "Falha ao carregar dados.", selectedDateFound: false }
         };
       } finally {
-        // Primeiro, calculamos os ambientes para salvar os valores atuais como "anteriores" para a próxima atualização
-        const ambientes = aggregateByEnvironment(filteredItems());
-        ambientes.forEach((ambiente) => {
+        setLoading(false);
+        // 3. Renderizar (que compara novos dados com previousReadings salvos)
+        render();
+        // 4. Salvar os novos valores como "anteriores" para a próxima atualização
+        const ambientesNovos = aggregateByEnvironment(filteredItems());
+        ambientesNovos.forEach((ambiente) => {
           state.previousReadings.set(ambiente.ambiente, ambiente.totalActual);
         });
-        setLoading(false);
-        render();
       }
     }
 
@@ -1106,6 +1124,10 @@
     }
 
     if(backBtn) backBtn.addEventListener("click", goBack);
+
+    if(refreshBtn) refreshBtn.addEventListener("click", () => {
+      load(state.filters.date || todayIso);
+    });
 
     dateFilter.value = todayIso;
     load(todayIso);
