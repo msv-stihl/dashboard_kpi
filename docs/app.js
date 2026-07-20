@@ -290,7 +290,8 @@ function sampleData() {
       accidents: [
         { label: "FAC", value: 0, lastRecord: "2022-12-31" },
         { label: "LSI", value: 0, lastRecord: "2022-12-31" },
-        { label: "UTL", value: 0, lastRecord: "2022-12-31" }
+        { label: "UTL", value: 0, lastRecord: "2022-12-31" },
+        { label: "SPCI", value: 0, lastRecord: "2022-12-31" }
       ],
       customerSatisfaction: {
         labels: ["jan", "fev", "mar"],
@@ -470,32 +471,109 @@ function toggleSidebar(show) {
 
 let slideshowInterval = null;
 let currentSlideshowIndex = 0;
-const slideshowRoutes = ["geral", "facilities", "lsi", "utilidades", "spci"];
+function clearSlideshowInterval() {
+  if (!slideshowInterval) return;
+  clearInterval(slideshowInterval);
+  slideshowInterval = null;
+}
+
+function setTvMode(active) {
+  toggleSidebar(!active);
+  const main = qs(".main");
+  const viewHost = qs("#viewHost");
+  if (main) {
+    main.classList.toggle("tv-mode", !!active);
+    if (!active) main.scrollTop = 0;
+  }
+  if (viewHost) {
+    viewHost.classList.toggle("tv-mode", !!active);
+  }
+}
+
+function getSlideshowSlides(data) {
+  return [
+    {
+      key: "geral",
+      title: "Geral",
+      render: (host) => mountGeneral(host, data, { tvMode: true })
+    },
+    {
+      key: "facilities-overview",
+      title: "Facilities",
+      render: (host) => mountFacilities(host, data, { mode: "overview", tvMode: true })
+    },
+    {
+      key: "facilities-productivity",
+      title: "Facilities",
+      render: (host) => mountFacilities(host, data, { mode: "productivity", tvMode: true })
+    },
+    {
+      key: "lsi-overview",
+      title: "LSI",
+      render: (host) => mountLSI(host, data, { mode: "overview", tvMode: true })
+    },
+    {
+      key: "lsi-eficacia",
+      title: "LSI",
+      render: (host) => mountLSI(host, data, { mode: "eficacia", tvMode: true })
+    },
+    {
+      key: "utilidades",
+      title: "Utilidades",
+      render: (host) => mountUtilidades(host, data, { tvMode: true })
+    },
+    {
+      key: "spci",
+      title: "SPCI",
+      render: (host) => mountSPCI(host, data, { tvMode: true })
+    }
+  ];
+}
 
 function mountSlideshow(host, data) {
-  toggleSidebar(false);
-  
-  // Add back button
+  setTvMode(true);
+  clearSlideshowInterval();
+
+  const slides = getSlideshowSlides(data);
+  const titleNode = el("h2", { class: "slideshow-title", text: slides[0]?.title ?? "Dashboard" });
   const backBtn = el("button", {
     class: "slideshow-back-btn",
     type: "button",
     text: "← Voltar",
     onclick: () => {
-      if (slideshowInterval) clearInterval(slideshowInterval);
-      toggleSidebar(true);
+      clearSlideshowInterval();
+      setTvMode(false);
       location.hash = "#/geral";
     }
   });
 
   const slideshowContainer = el("div", { class: "slideshow-container" });
+  const slideshowHeader = el("div", { class: "slideshow-header" }, [
+    el("div", { class: "slideshow-header-main" }, [backBtn, titleNode])
+  ]);
   const slideHost = el("div", { class: "slideshow-slide", id: "slideshow-slide-host" });
   const indicatorContainer = el("div", { class: "slideshow-indicators" });
 
-  slideshowRoutes.forEach((route, index) => {
+  const renderCurrentSlide = () => {
+    destroyCharts();
+    slideHost.innerHTML = "";
+    const slide = slides[currentSlideshowIndex] || slides[0];
+    titleNode.textContent = slide?.title ?? "Dashboard";
+
+    qsa(".slideshow-indicator", indicatorContainer).forEach((ind, idx) => {
+      ind.classList.toggle("is-active", idx === currentSlideshowIndex);
+    });
+
+    if (slide && typeof slide.render === "function") slide.render(slideHost);
+    slideHost.scrollTop = 0;
+  };
+
+  slides.forEach((slide, index) => {
     const indicator = el("button", {
       class: "slideshow-indicator",
       type: "button",
       text: index + 1,
+      title: slide.title,
       onclick: () => {
         currentSlideshowIndex = index;
         renderCurrentSlide();
@@ -504,33 +582,14 @@ function mountSlideshow(host, data) {
     indicatorContainer.append(indicator);
   });
 
-  slideshowContainer.append(backBtn, slideHost, indicatorContainer);
+  slideshowContainer.append(slideshowHeader, slideHost, indicatorContainer);
   host.append(slideshowContainer);
 
-  const renderCurrentSlide = () => {
-    destroyCharts();
-    slideHost.innerHTML = "";
-    const route = slideshowRoutes[currentSlideshowIndex];
-    
-    // Update indicators
-    qsa(".slideshow-indicator", indicatorContainer).forEach((ind, idx) => {
-      ind.classList.toggle("is-active", idx === currentSlideshowIndex);
-    });
-
-    // Render the current slide
-    if (route === "geral") mountGeneral(slideHost, data);
-    else if (route === "facilities") mountFacilities(slideHost, data);
-    else if (route === "lsi") mountLSI(slideHost, data);
-    else if (route === "utilidades") mountUtilidades(slideHost, data);
-    else if (route === "spci") mountSPCI(slideHost, data);
-  };
-
-  // Start slideshow
   renderCurrentSlide();
   slideshowInterval = setInterval(() => {
-    currentSlideshowIndex = (currentSlideshowIndex + 1) % slideshowRoutes.length;
+    currentSlideshowIndex = (currentSlideshowIndex + 1) % slides.length;
     renderCurrentSlide();
-  }, 20000); // 20 seconds
+  }, 20000);
 }
 
 function fetchJsonp(urlString, { force = false } = {}) {
@@ -637,29 +696,31 @@ function updateStatusLine() {
   setLastUpdatedText(`${base}${note}${err}`.trim());
 }
 
-function mountGeneral(host, data) {
+function mountGeneral(host, data, options = {}) {
+  const { tvMode = false } = options;
   const title = el("div", { class: "section-title", text: "Acidentes" });
-  const top = el("div", { class: "grid-3" });
+  const top = el("div", { class: `general-accidents-grid${tvMode ? " is-tv" : ""}` });
 
   const accidents = Array.isArray(data?.general?.accidents) ? data.general.accidents : [];
-  for (const item of accidents.slice(0, 3)) {
+  for (const item of accidents) {
+    const lastRecord = item?.lastRecord ? `último registro: ${formatDatePtBR(item.lastRecord)}` : "sem data informada";
     const card = el("div", { class: "card kpi-card" }, [
       el("div", { class: "kpi-top" }, [el("div", { class: "kpi-badge", text: item?.label ?? "" })]),
       el("div", { class: "kpi-value", text: formatNumberPtBR(item?.value ?? 0) }),
-      el("div", { class: "kpi-foot", text: `último registro: ${formatDatePtBR(item?.lastRecord)}` })
+      el("div", { class: "kpi-foot", text: lastRecord })
     ]);
     top.append(card);
   }
 
-  const bottom = el("div", { class: "grid-2", style: "margin-top:18px" });
+  const bottom = el("div", { class: "general-charts-stack" });
 
   const csCard = el("div", { class: "card" }, [
     el("div", { class: "card-title", text: "Histórico Satisfação Cliente" }),
-    el("div", { class: "chart-wrap" }, [el("canvas", { id: "chartCustomerSatisfaction" })])
+    el("div", { class: "chart-wrap general-chart-wrap" }, [el("canvas", { id: "chartCustomerSatisfaction" })])
   ]);
   const s7Card = el("div", { class: "card" }, [
     el("div", { class: "card-title", text: "Histórico 7S" }),
-    el("div", { class: "chart-wrap" }, [el("canvas", { id: "chartSevenS" })])
+    el("div", { class: "chart-wrap general-chart-wrap general-chart-wrap-compact" }, [el("canvas", { id: "chartSevenS" })])
   ]);
 
   bottom.append(csCard, s7Card);
@@ -724,7 +785,10 @@ function mountGeneral(host, data) {
   }
 }
 
-function mountFacilities(host, data) {
+function mountFacilities(host, data, options = {}) {
+  const { mode = "full", tvMode = false } = options;
+  const showOverview = mode !== "productivity";
+  const showProductivity = mode !== "overview";
   const f = data?.facilities ?? {};
   const teamColors = {
     Civil: "#2f80ed",
@@ -753,29 +817,32 @@ function mountFacilities(host, data) {
   );
 
   const layout = el("div", { class: "stack-lg" });
-  const zusCard = el("div", { class: "card chart-card-full" }, [
-    el("div", { class: "card-title", text: "Atendimento ZUS" }),
-    el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartAtendimentoZUS" })])
-  ]);
-  const metricsRow = el("div", { class: "facility-priority-row" });
-  const priorityCard = el("div", { class: "card" }, [
-    el("div", { class: "card-title", text: "Prioridade alta" }),
-    el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartPrioridadeAlta" })])
-  ]);
-  const portasRapidasCard = el("div", { class: "card" }, [
-    el("div", { class: "card-title", text: "Portas rápidas pendentes" }),
-    el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartPortasRapidasPendentes" })])
-  ]);
-  const evaluationsCard = el("div", { class: "card" }, [
-    el("div", { class: "card-title", text: "Avaliações" }),
-    el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartAvaliacoes" })])
-  ]);
-  metricsRow.append(priorityCard, portasRapidasCard, evaluationsCard);
-
-  const bottom = el("div", { class: "facilities-bottom" });
+  let prodChartWrap = null;
   const filterBar = el("div", { class: "filter-chips" });
   const prodEmpty = el("div", { class: "productivity-empty", text: "Nenhum colaborador encontrado para esta equipe.", hidden: true });
-  const prodChartWrap = el("div", { class: "chart-wrap wide productivity-chart-wrap" }, [el("canvas", { id: "chartProdColab" })]);
+  if (showOverview) {
+    const zusCard = el("div", { class: "card chart-card-full" }, [
+      el("div", { class: "card-title", text: "Atendimento ZUS" }),
+      el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartAtendimentoZUS" })])
+    ]);
+    const metricsRow = el("div", { class: "facility-priority-row" });
+    const priorityCard = el("div", { class: "card" }, [
+      el("div", { class: "card-title", text: "Prioridade alta" }),
+      el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartPrioridadeAlta" })])
+    ]);
+    const portasRapidasCard = el("div", { class: "card" }, [
+      el("div", { class: "card-title", text: "Portas rápidas pendentes" }),
+      el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartPortasRapidasPendentes" })])
+    ]);
+    const evaluationsCard = el("div", { class: "card" }, [
+      el("div", { class: "card-title", text: "Avaliações" }),
+      el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartAvaliacoes" })])
+    ]);
+    metricsRow.append(priorityCard, portasRapidasCard, evaluationsCard);
+    layout.append(zusCard, metricsRow);
+  }
+
+  prodChartWrap = el("div", { class: `chart-wrap wide productivity-chart-wrap${tvMode ? " is-tv" : ""}` }, [el("canvas", { id: "chartProdColab" })]);
   const prodColab = el("div", { class: "card productivity-card" }, [
     el("div", { class: "card-head" }, [
       el("div", { class: "card-title", text: "Produtividade por colaborador" }),
@@ -785,20 +852,26 @@ function mountFacilities(host, data) {
     prodEmpty
   ]);
 
-  bottom.append(prodColab);
-  layout.append(zusCard, metricsRow, bottom);
+  if (showProductivity) {
+    if (mode !== "productivity") {
+      const bottom = el("div", { class: "facilities-bottom" });
+      bottom.append(prodColab);
+      layout.append(bottom);
+    }
+  }
 
-  host.append(kpis, layout);
+  if (showOverview) host.append(kpis, layout);
+  if (mode === "productivity") host.append(prodColab);
 
   const az = f?.atendimentoZUS ?? {};
-  renderZusChart("#chartAtendimentoZUS", "chartAtendimentoZUS", az, { defaultColor: "#333", fallbackLimit: 2, minMax: 3 });
+  if (showOverview) renderZusChart("#chartAtendimentoZUS", "chartAtendimentoZUS", az, { defaultColor: "#333", fallbackLimit: 2, minMax: 3 });
 
   const pa = f?.prioridadeAlta ?? {};
   const paLabels = Array.isArray(pa.labels) ? pa.labels : [];
   const paValues = Array.isArray(pa.values) ? pa.values : [];
   const paColors = Array.isArray(pa.colors) ? pa.colors : [];
 
-  const ctx2 = qs("#chartPrioridadeAlta")?.getContext("2d");
+  const ctx2 = showOverview ? qs("#chartPrioridadeAlta")?.getContext("2d") : null;
   if (ctx2) {
     const chart = new Chart(ctx2, {
       type: "bar",
@@ -830,7 +903,7 @@ function mountFacilities(host, data) {
   const prpValues = Array.isArray(prp.values) ? prp.values : [];
   const prpColors = Array.isArray(prp.colors) ? prp.colors : [];
 
-  const ctxPortasRapidas = qs("#chartPortasRapidasPendentes")?.getContext("2d");
+  const ctxPortasRapidas = showOverview ? qs("#chartPortasRapidasPendentes")?.getContext("2d") : null;
   if (ctxPortasRapidas) {
     const chart = new Chart(ctxPortasRapidas, {
       type: "bar",
@@ -862,7 +935,7 @@ function mountFacilities(host, data) {
   const avValues = Array.isArray(av.values) ? av.values : [];
   const avColors = Array.isArray(av.colors) ? av.colors : [];
 
-  const ctx3 = qs("#chartAvaliacoes")?.getContext("2d");
+  const ctx3 = showOverview ? qs("#chartAvaliacoes")?.getContext("2d") : null;
   if (ctx3) {
     const chart = new Chart(ctx3, {
       type: "pie",
@@ -902,10 +975,10 @@ function mountFacilities(host, data) {
           backgroundColor: pcColor,
           borderRadius: 8,
           borderSkipped: false,
-          barThickness: 14,
-          maxBarThickness: 18,
-          categoryPercentage: 0.72,
-          barPercentage: 0.82
+          barThickness: tvMode ? 10 : 14,
+          maxBarThickness: tvMode ? 12 : 18,
+          categoryPercentage: tvMode ? 0.92 : 0.72,
+          barPercentage: tvMode ? 0.9 : 0.82
         }]
       },
       options: {
@@ -930,7 +1003,7 @@ function mountFacilities(host, data) {
           },
           y: {
             grid: { display: false },
-            ticks: { color: "#111", autoSkip: false }
+            ticks: { color: "#111", autoSkip: false, font: tvMode ? { size: 11 } : undefined }
           }
         }
       }
@@ -945,7 +1018,10 @@ function mountFacilities(host, data) {
       chart.data.labels = filtered.map((item) => item.name);
       chart.data.datasets[0].data = filtered.map((item) => item.value);
       chart.data.datasets[0].backgroundColor = filtered.map((item) => teamColors[item.team] ?? pcColor);
-      prodChartWrap.style.height = `${Math.max(340, filtered.length * 30 + 110)}px`;
+      const chartHeight = tvMode
+        ? Math.min(560, Math.max(360, filtered.length * 18 + 100))
+        : Math.max(340, filtered.length * 30 + 110);
+      prodChartWrap.style.height = `${chartHeight}px`;
       prodEmpty.hidden = filtered.length > 0;
       chart.update();
 
@@ -971,7 +1047,8 @@ function mountFacilities(host, data) {
   }
 }
 
-function mountUtilidades(host, data) {
+function mountUtilidades(host, data, options = {}) {
+  const { tvMode = false } = options;
   const u = data?.utilidades ?? {};
   const baseTeamColors = {
     Civil: "#2f80ed",
@@ -1011,13 +1088,13 @@ function mountUtilidades(host, data) {
   const layout = el("div", { class: "stack-lg" });
   const zusCard = el("div", { class: "card chart-card-full" }, [
     el("div", { class: "card-title", text: "Atendimento ZUS" }),
-    el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartUtilidadesZUS" })])
+    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartUtilidadesZUS" })])
   ]);
 
   const bottom = el("div", { class: "facilities-bottom" });
   const filterBar = el("div", { class: "filter-chips" });
   const prodEmpty = el("div", { class: "productivity-empty", text: "Nenhum colaborador encontrado para esta equipe.", hidden: true });
-  const prodChartWrap = el("div", { class: "chart-wrap wide productivity-chart-wrap" }, [el("canvas", { id: "chartUtilidadesProdColab" })]);
+  const prodChartWrap = el("div", { class: `chart-wrap wide productivity-chart-wrap${tvMode ? " is-tv" : ""}` }, [el("canvas", { id: "chartUtilidadesProdColab" })]);
   const prodColab = el("div", { class: "card productivity-card" }, [
     el("div", { class: "card-head" }, [
       el("div", { class: "card-title", text: "Apontamento por colaborador" }),
@@ -1052,10 +1129,10 @@ function mountUtilidades(host, data) {
           backgroundColor: pcColor,
           borderRadius: 8,
           borderSkipped: false,
-          barThickness: 14,
-          maxBarThickness: 18,
-          categoryPercentage: 0.72,
-          barPercentage: 0.82
+          barThickness: tvMode ? 10 : 14,
+          maxBarThickness: tvMode ? 12 : 18,
+          categoryPercentage: tvMode ? 0.92 : 0.72,
+          barPercentage: tvMode ? 0.9 : 0.82
         }]
       },
       options: {
@@ -1080,7 +1157,7 @@ function mountUtilidades(host, data) {
           },
           y: {
             grid: { display: false },
-            ticks: { color: "#111", autoSkip: false }
+            ticks: { color: "#111", autoSkip: false, font: tvMode ? { size: 11 } : undefined }
           }
         }
       }
@@ -1095,7 +1172,10 @@ function mountUtilidades(host, data) {
       chart.data.labels = filtered.map((item) => item.name);
       chart.data.datasets[0].data = filtered.map((item) => item.value);
       chart.data.datasets[0].backgroundColor = filtered.map((item) => teamColors[item.team] ?? pcColor);
-      prodChartWrap.style.height = `${Math.max(340, filtered.length * 30 + 110)}px`;
+      const chartHeight = tvMode
+        ? Math.min(520, Math.max(340, filtered.length * 18 + 90))
+        : Math.max(340, filtered.length * 30 + 110);
+      prodChartWrap.style.height = `${chartHeight}px`;
       prodEmpty.hidden = filtered.length > 0;
       chart.update();
 
@@ -1121,7 +1201,8 @@ function mountUtilidades(host, data) {
   }
 }
 
-function mountSPCI(host, data) {
+function mountSPCI(host, data, options = {}) {
+  const { tvMode = false } = options;
   const u = data?.spci ?? {};
   const baseTeamColors = {
     Civil: "#2f80ed",
@@ -1162,13 +1243,13 @@ function mountSPCI(host, data) {
   const layout = el("div", { class: "stack-lg" });
   const zusCard = el("div", { class: "card chart-card-full" }, [
     el("div", { class: "card-title", text: "Atendimento ZUS" }),
-    el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartSpciZUS" })])
+    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartSpciZUS" })])
   ]);
 
   const bottom = el("div", { class: "facilities-bottom" });
   const filterBar = el("div", { class: "filter-chips" });
   const prodEmpty = el("div", { class: "productivity-empty", text: "Nenhum colaborador encontrado para esta equipe.", hidden: true });
-  const prodChartWrap = el("div", { class: "chart-wrap wide productivity-chart-wrap" }, [el("canvas", { id: "chartSpciProdColab" })]);
+  const prodChartWrap = el("div", { class: `chart-wrap wide productivity-chart-wrap${tvMode ? " is-tv" : ""}` }, [el("canvas", { id: "chartSpciProdColab" })]);
   const prodColab = el("div", { class: "card productivity-card" }, [
     el("div", { class: "card-head" }, [
       el("div", { class: "card-title", text: "Apontamento por colaborador" }),
@@ -1203,10 +1284,10 @@ function mountSPCI(host, data) {
           backgroundColor: pcColor,
           borderRadius: 8,
           borderSkipped: false,
-          barThickness: 14,
-          maxBarThickness: 18,
-          categoryPercentage: 0.72,
-          barPercentage: 0.82
+          barThickness: tvMode ? 10 : 14,
+          maxBarThickness: tvMode ? 12 : 18,
+          categoryPercentage: tvMode ? 0.92 : 0.72,
+          barPercentage: tvMode ? 0.9 : 0.82
         }]
       },
       options: {
@@ -1231,7 +1312,7 @@ function mountSPCI(host, data) {
           },
           y: {
             grid: { display: false },
-            ticks: { color: "#111", autoSkip: false }
+            ticks: { color: "#111", autoSkip: false, font: tvMode ? { size: 11 } : undefined }
           }
         }
       }
@@ -1246,7 +1327,10 @@ function mountSPCI(host, data) {
       chart.data.labels = filtered.map((item) => item.name);
       chart.data.datasets[0].data = filtered.map((item) => item.value);
       chart.data.datasets[0].backgroundColor = filtered.map((item) => teamColors[item.team] ?? pcColor);
-      prodChartWrap.style.height = `${Math.max(340, filtered.length * 30 + 110)}px`;
+      const chartHeight = tvMode
+        ? Math.min(520, Math.max(340, filtered.length * 18 + 90))
+        : Math.max(340, filtered.length * 30 + 110);
+      prodChartWrap.style.height = `${chartHeight}px`;
       prodEmpty.hidden = filtered.length > 0;
       chart.update();
 
@@ -1272,7 +1356,10 @@ function mountSPCI(host, data) {
   }
 }
 
-function mountLSI(host, data) {
+function mountLSI(host, data, options = {}) {
+  const { mode = "full", tvMode = false } = options;
+  const showOverview = mode !== "eficacia";
+  const showEficacia = mode !== "overview";
   const lsi = data?.lsi ?? {};
   const az = lsi?.atendimentoZUS ?? {};
   const azLabels = Array.isArray(az.labels) ? az.labels : [];
@@ -1280,21 +1367,21 @@ function mountLSI(host, data) {
   const cronogramas = Array.isArray(lsi?.cronogramas) ? lsi.cronogramas : [];
   const eficacia = Array.isArray(lsi?.eficacia) ? lsi.eficacia : [];
 
-  host.append(el("div", { class: "section-title", text: "LSI" }));
+  if (!tvMode) host.append(el("div", { class: "section-title", text: "LSI" }));
 
-  const zusCard = el("div", { class: "card" }, [
+  const zusCard = showOverview ? el("div", { class: "card" }, [
     el("div", { class: "card-title", text: "Atendimento ZUS" }),
-    el("div", { class: "chart-wrap tall" }, [el("canvas", { id: "chartLsiAtendimentoZUS" })])
-  ]);
+    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartLsiAtendimentoZUS" })])
+  ]) : null;
 
-  if (!azLabels.length || !azSeries.length) {
+  if (zusCard && (!azLabels.length || !azSeries.length)) {
     zusCard.append(el("div", { class: "placeholder compact", text: "Nenhum atendimento ZUS configurado." }));
   }
 
-  const cronTitle = el("div", { class: "section-title section-subtitle", text: "Cronogramas" });
-  const cronGrid = el("div", { class: "lsi-grid cron-grid" });
+  const cronTitle = showOverview ? el("div", { class: "section-title section-subtitle", text: "Cronogramas" }) : null;
+  const cronGrid = showOverview ? el("div", { class: "lsi-grid cron-grid" }) : null;
 
-  for (const metric of cronogramas) {
+  for (const metric of showOverview ? cronogramas : []) {
     const result = Number(metric?.result ?? 0);
     const target = Number(metric?.target ?? 0);
     const scale = Math.max(result, target, 100, 1);
@@ -1317,10 +1404,10 @@ function mountLSI(host, data) {
     );
   }
 
-  const effTitle = el("div", { class: "section-title section-subtitle", text: "Eficácia" });
-  const effGrid = el("div", { class: "grid-2" });
+  const effTitle = showEficacia ? el("div", { class: "section-title section-subtitle", text: "Eficácia" }) : null;
+  const effGrid = showEficacia ? el("div", { class: "grid-2" }) : null;
 
-  eficacia.forEach((metric, idx) => {
+  (showEficacia ? eficacia : []).forEach((metric, idx) => {
     effGrid.append(
       el("div", { class: "card lsi-chart-card" }, [
         el("div", { class: "card-title", text: metric?.label ?? "" }),
@@ -1331,12 +1418,14 @@ function mountLSI(host, data) {
     );
   });
 
-  if (!cronogramas.length) cronGrid.append(el("div", { class: "card placeholder compact", text: "Nenhum cronograma configurado." }));
-  if (!eficacia.length) effGrid.append(el("div", { class: "card placeholder compact", text: "Nenhum indicador de eficácia configurado." }));
+  if (cronGrid && !cronogramas.length) cronGrid.append(el("div", { class: "card placeholder compact", text: "Nenhum cronograma configurado." }));
+  if (effGrid && !eficacia.length) effGrid.append(el("div", { class: "card placeholder compact", text: "Nenhum indicador de eficácia configurado." }));
 
-  host.append(zusCard, cronTitle, cronGrid, effTitle, effGrid);
+  if (zusCard) host.append(zusCard);
+  if (cronTitle && cronGrid) host.append(cronTitle, cronGrid);
+  if (effTitle && effGrid) host.append(effTitle, effGrid);
 
-  if (azLabels.length && azSeries.length) {
+  if (showOverview && azLabels.length && azSeries.length) {
     renderZusChart("#chartLsiAtendimentoZUS", "chartLsiAtendimentoZUS", az, { defaultColor: "#333", fallbackLimit: 2, minMax: 3 });
   }
 
@@ -1348,7 +1437,7 @@ function mountLSI(host, data) {
     "Limpeza de Pisos": "#810B38"
   };
 
-  eficacia.forEach((metric, idx) => {
+  (showEficacia ? eficacia : []).forEach((metric, idx) => {
     const ctx = qs(`#chartLsiEficacia${idx}`)?.getContext("2d");
     if (!ctx) return;
 
@@ -1399,11 +1488,13 @@ function getRoute() {
 function renderRoute(route) {
   const host = qs("#viewHost");
   if (!host) return;
+  clearSlideshowInterval();
   destroyCharts();
   host.innerHTML = "";
 
   if (!store.data) store.data = sampleData();
   updateStatusLine();
+  if (route !== "slideshow") setTvMode(false);
 
   if (route === "geral") mountGeneral(host, store.data);
   else if (route === "facilities") mountFacilities(host, store.data);
@@ -1419,18 +1510,11 @@ function renderRoute(route) {
     return;
   }
   else if (route === "slideshow") {
-    // Clear any existing interval first
-    if (slideshowInterval) {
-      clearInterval(slideshowInterval);
-    }
     mountSlideshow(host, store.data);
+    setNavActive(route);
     return;
   }
-  else {
-    // Show sidebar for other routes
-    toggleSidebar(true);
-    mountPlaceholder(host, "Dashboard");
-  }
+  else mountPlaceholder(host, "Dashboard");
   setNavActive(route);
 }
 

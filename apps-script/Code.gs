@@ -1596,6 +1596,53 @@ function kvFromTable_(values) {
   return out;
 }
 
+function buildGeneralAccidentsFromDash_(ss) {
+  return [
+    { label: "Facilities", value: toNumber_(getA1_(ss, "dash", "B3")), lastRecord: "" },
+    { label: "LSI (Limpeza)", value: toNumber_(getA1_(ss, "dash", "B4")), lastRecord: "" },
+    { label: "Utilidades", value: toNumber_(getA1_(ss, "dash", "B5")), lastRecord: "" },
+    { label: "SPCI", value: toNumber_(getA1_(ss, "dash", "B6")), lastRecord: "" }
+  ];
+}
+
+function normalizeAccidentLabel_(value) {
+  const raw = String(value == null ? "" : value).trim();
+  const key = raw
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+  if (!key) return "";
+  if (key === "facilities" || key === "facility" || key === "fac") return "Facilities";
+  if (key === "lsi" || key.indexOf("lsi") === 0) return "LSI (Limpeza)";
+  if (key === "utilidades" || key === "utl" || key === "utilidade") return "Utilidades";
+  if (key === "spci") return "SPCI";
+  return raw;
+}
+
+function ensureGeneralAccidents_(accidents, ss) {
+  const base = Array.isArray(accidents) ? accidents : [];
+  const merged = new Map();
+
+  base.forEach((item) => {
+    const label = normalizeAccidentLabel_(item && item.label);
+    if (!label) return;
+    merged.set(label, {
+      label,
+      value: toNumber_(item && item.value),
+      lastRecord: item && item.lastRecord ? item.lastRecord : ""
+    });
+  });
+
+  buildGeneralAccidentsFromDash_(ss).forEach((item) => {
+    if (merged.has(item.label)) return;
+    merged.set(item.label, item);
+  });
+
+  return ["Facilities", "LSI (Limpeza)", "Utilidades", "SPCI"]
+    .map((label) => merged.get(label))
+    .filter(Boolean);
+}
+
 function buildDashboardPayload_() {
   const cfg = getConfig_();
   if (!cfg.SPREADSHEET_ID) throw new Error("SPREADSHEET_ID ausente");
@@ -1605,11 +1652,7 @@ function buildDashboardPayload_() {
 
   const dashSheet = ss.getSheetByName("dash");
   if (dashSheet) {
-    const accidents = [
-      { label: "Facilities", value: toNumber_(getA1_(ss, "dash", "B3")), lastRecord: "" },
-      { label: "LSI (Limpeza)", value: toNumber_(getA1_(ss, "dash", "B4")), lastRecord: "" },
-      { label: "Utilidades", value: toNumber_(getA1_(ss, "dash", "B5")), lastRecord: "" }
-    ];
+    const accidents = buildGeneralAccidentsFromDash_(ss);
     const customerSatisfaction = dashCustomerSatisfaction_(dashSheet);
     const sevenS = dashSevenS_(dashSheet);
     const tma = getA1_(ss, "dash", "B21");
@@ -1680,11 +1723,11 @@ function buildDashboardPayload_() {
   const csValues2 = csValues;
   const s7Values2 = s7Values;
 
-  const accidents2 = accValues2 ? asTable_(accValues2).map((r) => ({
+  const accidents2 = ensureGeneralAccidents_(accValues2 ? asTable_(accValues2).map((r) => ({
     label: String(r.label ?? r.Label ?? r.area ?? r.Area ?? ""),
     value: Number(r.value ?? r.Value ?? 0),
     lastRecord: r.lastRecord ?? r.last_record ?? r.last ?? ""
-  })).filter((x) => x.label) : [];
+  })).filter((x) => x.label) : [], ss);
 
   const csRows2 = csValues2 ? asTable_(csValues2) : [];
   const csLabels2 = csRows2.map((r) => String(r.month ?? r.Mes ?? r.label ?? ""));
@@ -2450,11 +2493,275 @@ function buildLsiRotinasPayload_(e) {
   return payload;
 }
 
+function buildClientSchedulePayload_(e) {
+  const cfg = getConfig_();
+  if (!cfg.SPREADSHEET_ID) throw new Error("SPREADSHEET_ID ausente");
+
+  const token = e && e.parameter
+    ? String(e.parameter.token || e.parameter.access_token || e.parameter.api_token || "").trim()
+    : "";
+  const requiredToken = String(cfg.APPS_SCRIPT_TOKEN || "").trim();
+  if (requiredToken && token !== requiredToken) {
+    return {
+      ok: false,
+      found: false,
+      error: "Token invalido.",
+      query: "",
+      matches: [],
+      selected: null,
+      meta: { authorized: false }
+    };
+  }
+
+  const query = e && e.parameter
+    ? String(e.parameter.query || e.parameter.q || e.parameter.ambiente || "").trim()
+    : "";
+  const selectedKey = e && e.parameter
+    ? String(e.parameter.environmentKey || e.parameter.ambienteKey || "").trim()
+    : "";
+
+  const ss = SpreadsheetApp.openById(cfg.SPREADSHEET_ID);
+  const sheet = ss.getSheetByName("LSI") || ss.getSheetByName("lsi");
+  const now = new Date();
+  const tz = "America/Sao_Paulo";
+
+  const normalizeText_ = (value) => String(value == null ? "" : value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+  const slugify_ = (value) => normalizeText_(value)
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const parseDayList_ = (value) => Array.from(new Set(
+    String(value == null ? "" : value)
+      .split(/[^\d]+/)
+      .map((part) => Number(part))
+      .filter((n) => Number.isFinite(n) && n >= 1 && n <= 7)
+  )).sort((a, b) => a - b);
+  const parseTurnList_ = (value) => {
+    const raw = String(value == null ? "" : value).trim();
+    if (!raw) return [];
+    return Array.from(new Set(
+      raw
+        .replace(/\s+e\s+/gi, ";")
+        .split(/[;,/|]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+    ));
+  };
+  const frequencyLabel_ = (frequencyCode) => ({
+    1: "Turnario",
+    2: "2x por dia",
+    3: "Diario",
+    4: "Dias alternados",
+    5: "Semanal",
+    6: "Sob demanda"
+  }[frequencyCode] || "Nao informado");
+  const dayLabels_ = (days) => {
+    const map = { 1: "Seg", 2: "Ter", 3: "Qua", 4: "Qui", 5: "Sex", 6: "Sab", 7: "Dom" };
+    return (days || []).map((day) => map[day] || String(day));
+  };
+  const parseSheetDate_ = (value, yearHint) => {
+    if (value instanceof Date) {
+      const d = new Date(value);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+    const s = String(value == null ? "" : value).trim();
+    if (!s) return null;
+    const serial = Number(String(s).replace(",", "."));
+    if (Number.isFinite(serial) && serial > 0 && serial < 100000) {
+      const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+      const d = new Date(excelEpoch.getTime() + serial * 24 * 60 * 60 * 1000);
+      d.setHours(0, 0, 0, 0);
+      return d;
+    }
+    const parts = s.match(/^(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?$/);
+    if (parts) {
+      const dd = Number(parts[1]);
+      const mm = Number(parts[2]);
+      const yyRaw = Number(parts[3] || yearHint || now.getFullYear());
+      const yy = yyRaw < 100 ? 2000 + yyRaw : yyRaw;
+      const d = new Date(yy, mm - 1, dd);
+      if (!Number.isNaN(d.getTime())) {
+        d.setHours(0, 0, 0, 0);
+        return d;
+      }
+    }
+    const fallback = new Date(s);
+    if (Number.isNaN(fallback.getTime())) return null;
+    fallback.setHours(0, 0, 0, 0);
+    return fallback;
+  };
+  const toIsoDate_ = (date) => Utilities.formatDate(date, tz, "yyyy-MM-dd");
+  const toPtDate_ = (date) => Utilities.formatDate(date, tz, "dd/MM/yyyy");
+  const matchesQuery_ = (ambiente) => {
+    if (!query) return true;
+    return normalizeText_(ambiente).indexOf(normalizeText_(query)) >= 0;
+  };
+
+  const emptyPayload_ = (meta) => ({
+    ok: true,
+    found: false,
+    query,
+    matches: [],
+    selected: null,
+    meta: Object.assign({ authorized: true }, meta || {})
+  });
+
+  if (!sheet) {
+    return emptyPayload_({ error: "Aba LSI nao encontrada." });
+  }
+
+  const lastCol = sheet.getLastColumn();
+  if (lastCol < 9) {
+    return emptyPayload_({ error: "Nao ha colunas de rotina na aba LSI." });
+  }
+
+  const cache = CacheService.getScriptCache();
+  const cacheKey = `cliente_cronograma:${cfg.SPREADSHEET_ID}:${normalizeText_(query)}:${selectedKey}`;
+  const cached = cache.get(cacheKey);
+  if (cached) {
+    try { return JSON.parse(cached); } catch {}
+  }
+  const putCacheIfFits_ = (value) => {
+    try {
+      const json = JSON.stringify(value);
+      if (json.length <= 95000) cache.put(cacheKey, json, 120);
+    } catch {}
+  };
+
+  const dateHeaders = sheet.getRange(6, 9, 1, lastCol - 8).getValues()[0] || [];
+  const dateByColumn = {};
+  for (let idx = 0; idx < dateHeaders.length; idx++) {
+    const parsed = parseSheetDate_(dateHeaders[idx], now.getFullYear());
+    if (parsed) dateByColumn[idx + 9] = parsed;
+  }
+
+  const cronogramas = [
+    { id: "salas", label: "Limpeza de Salas", startRow: 7, endRow: 469 },
+    { id: "banheiros", label: "Limpeza de Banheiros", startRow: 471, endRow: 590 },
+    { id: "residuos", label: "Recolhimento de Residuos", startRow: 592, endRow: 743 },
+    { id: "piso", label: "Limpeza de Piso", startRow: 745, endRow: 765 }
+  ];
+
+  const grouped = new Map();
+  let scanned = 0;
+
+  for (const bloco of cronogramas) {
+    const rowCount = bloco.endRow - bloco.startRow + 1;
+    const baseRows = sheet.getRange(bloco.startRow, 2, rowCount, 6).getValues();
+    const routineRows = sheet.getRange(bloco.startRow, 9, rowCount, lastCol - 8).getValues();
+
+    for (let idx = 0; idx < baseRows.length; idx++) {
+      const row = baseRows[idx] || [];
+      const rotina = routineRows[idx] || [];
+      scanned++;
+
+      const ambiente = String(row[0] == null ? "" : row[0]).trim();
+      if (!ambiente) continue;
+
+      const environmentKey = slugify_(ambiente);
+      const days = parseDayList_(row[3]);
+      const frequencyCode = Math.floor(toNumber_(row[4]));
+      const shifts = parseTurnList_(row[5]);
+
+      let lastRoutineDate = null;
+      for (let colOffset = rotina.length - 1; colOffset >= 0; colOffset--) {
+        const value = rotina[colOffset];
+        const numeric = typeof value === "number" ? value : Number(String(value == null ? "" : value).replace(",", "."));
+        if (!Number.isFinite(numeric) || numeric <= 0) continue;
+        lastRoutineDate = dateByColumn[colOffset + 9] || null;
+        if (lastRoutineDate) break;
+      }
+
+      const entry = {
+        rowNumber: bloco.startRow + idx,
+        cronogramaId: bloco.id,
+        cronogramaLabel: bloco.label,
+        days,
+        daysLabel: dayLabels_(days),
+        frequencyCode,
+        frequencyLabel: frequencyLabel_(frequencyCode),
+        shifts,
+        onDemand: frequencyCode === 6 || !days.length,
+        lastRoutineAt: lastRoutineDate ? toIsoDate_(lastRoutineDate) : null,
+        lastRoutineLabel: lastRoutineDate ? toPtDate_(lastRoutineDate) : null
+      };
+
+      if (!grouped.has(environmentKey)) {
+        grouped.set(environmentKey, {
+          environmentKey,
+          environmentName: ambiente,
+          entries: []
+        });
+      }
+
+      grouped.get(environmentKey).entries.push(entry);
+    }
+  }
+
+  const matches = Array.from(grouped.values())
+    .filter((item) => matchesQuery_(item.environmentName))
+    .map((item) => ({
+      environmentKey: item.environmentKey,
+      environmentName: item.environmentName,
+      scheduleLabels: Array.from(new Set(item.entries.map((entry) => entry.cronogramaLabel))),
+      shifts: Array.from(new Set(item.entries.flatMap((entry) => entry.shifts || []).filter(Boolean)))
+    }))
+    .sort((a, b) => a.environmentName.localeCompare(b.environmentName, "pt-BR"))
+    .slice(0, 20);
+
+  let selected = null;
+  if (selectedKey && grouped.has(selectedKey)) {
+    const source = grouped.get(selectedKey);
+    const entries = source.entries.slice().sort((a, b) => a.rowNumber - b.rowNumber);
+    const allDays = Array.from(new Set(entries.flatMap((entry) => entry.days || []))).sort((a, b) => a - b);
+    const allShifts = Array.from(new Set(entries.flatMap((entry) => entry.shifts || []).filter(Boolean)));
+    const allFrequencies = Array.from(new Set(entries.map((entry) => entry.frequencyLabel).filter(Boolean)));
+    const scheduleLabels = Array.from(new Set(entries.map((entry) => entry.cronogramaLabel).filter(Boolean)));
+    const datedEntries = entries.filter((entry) => entry.lastRoutineAt);
+    const latestEntry = datedEntries.sort((a, b) => String(a.lastRoutineAt).localeCompare(String(b.lastRoutineAt))).slice(-1)[0] || null;
+
+    selected = {
+      environmentKey: source.environmentKey,
+      environmentName: source.environmentName,
+      scheduleLabels,
+      days: allDays,
+      daysLabel: dayLabels_(allDays),
+      shifts: allShifts,
+      frequencyLabels: allFrequencies,
+      lastRoutineAt: latestEntry ? latestEntry.lastRoutineAt : null,
+      lastRoutineLabel: latestEntry ? latestEntry.lastRoutineLabel : null,
+      entries
+    };
+  }
+
+  const payload = {
+    ok: true,
+    found: !!selected,
+    query,
+    matches,
+    selected,
+    meta: {
+      authorized: true,
+      sheet: sheet.getName(),
+      scanned,
+      totalMatches: matches.length
+    }
+  };
+  putCacheIfFits_(payload);
+  return payload;
+}
+
 function doGet(e) {
   const view = e && e.parameter ? String(e.parameter.view || "").trim() : "";
   let payload;
   if (view === "prog_sem") payload = buildProgSemPayload_(e);
   else if (view === "lsi_rotinas") payload = buildLsiRotinasPayload_(e);
+  else if (view === "cliente_cronograma") payload = buildClientSchedulePayload_(e);
   else if (view === "cliente_os") payload = buildClientOsPayload_(e);
   else payload = buildDashboardPayload_();
   const cb = e && e.parameter ? e.parameter.callback : "";
