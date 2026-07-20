@@ -459,6 +459,80 @@ function setNavActive(route) {
   }
 }
 
+function toggleSidebar(show) {
+  const sidebar = qs(".sidebar");
+  const shell = qs(".shell");
+  if (sidebar && shell) {
+    sidebar.style.display = show ? "flex" : "none";
+    shell.style.gridTemplateColumns = show ? "260px 1fr" : "1fr";
+  }
+}
+
+let slideshowInterval = null;
+let currentSlideshowIndex = 0;
+const slideshowRoutes = ["geral", "facilities", "lsi", "utilidades", "spci"];
+
+function mountSlideshow(host, data) {
+  toggleSidebar(false);
+  
+  // Add back button
+  const backBtn = el("button", {
+    class: "slideshow-back-btn",
+    type: "button",
+    text: "← Voltar",
+    onclick: () => {
+      if (slideshowInterval) clearInterval(slideshowInterval);
+      toggleSidebar(true);
+      location.hash = "#/geral";
+    }
+  });
+
+  const slideshowContainer = el("div", { class: "slideshow-container" });
+  const slideHost = el("div", { class: "slideshow-slide", id: "slideshow-slide-host" });
+  const indicatorContainer = el("div", { class: "slideshow-indicators" });
+
+  slideshowRoutes.forEach((route, index) => {
+    const indicator = el("button", {
+      class: "slideshow-indicator",
+      type: "button",
+      text: index + 1,
+      onclick: () => {
+        currentSlideshowIndex = index;
+        renderCurrentSlide();
+      }
+    });
+    indicatorContainer.append(indicator);
+  });
+
+  slideshowContainer.append(backBtn, slideHost, indicatorContainer);
+  host.append(slideshowContainer);
+
+  const renderCurrentSlide = () => {
+    destroyCharts();
+    slideHost.innerHTML = "";
+    const route = slideshowRoutes[currentSlideshowIndex];
+    
+    // Update indicators
+    qsa(".slideshow-indicator", indicatorContainer).forEach((ind, idx) => {
+      ind.classList.toggle("is-active", idx === currentSlideshowIndex);
+    });
+
+    // Render the current slide
+    if (route === "geral") mountGeneral(slideHost, data);
+    else if (route === "facilities") mountFacilities(slideHost, data);
+    else if (route === "lsi") mountLSI(slideHost, data);
+    else if (route === "utilidades") mountUtilidades(slideHost, data);
+    else if (route === "spci") mountSPCI(slideHost, data);
+  };
+
+  // Start slideshow
+  renderCurrentSlide();
+  slideshowInterval = setInterval(() => {
+    currentSlideshowIndex = (currentSlideshowIndex + 1) % slideshowRoutes.length;
+    renderCurrentSlide();
+  }, 20000); // 20 seconds
+}
+
 function fetchJsonp(urlString, { force = false } = {}) {
   return new Promise((resolve, reject) => {
     const cbParam = String(cfg.jsonpCallbackParam || "callback");
@@ -1344,7 +1418,19 @@ function renderRoute(route) {
     location.replace("./rotinas_limpeza.html");
     return;
   }
-  else mountPlaceholder(host, "Dashboard");
+  else if (route === "slideshow") {
+    // Clear any existing interval first
+    if (slideshowInterval) {
+      clearInterval(slideshowInterval);
+    }
+    mountSlideshow(host, store.data);
+    return;
+  }
+  else {
+    // Show sidebar for other routes
+    toggleSidebar(true);
+    mountPlaceholder(host, "Dashboard");
+  }
   setNavActive(route);
 }
 

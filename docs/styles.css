@@ -447,6 +447,63 @@ body{
   margin-bottom:10px;
 }
 
+.slideshow-container{
+  position:relative;
+  width:100%;
+  height:100%;
+}
+.slideshow-back-btn{
+  position:absolute;
+  top:0;
+  left:0;
+  height:40px;
+  border-radius:10px;
+  border:1px solid var(--stroke);
+  background:var(--card);
+  color:var(--text);
+  padding:0 16px;
+  cursor:pointer;
+  font:600 14px var(--font);
+  z-index:100;
+}
+.slideshow-back-btn:hover{
+  border-color:var(--accent);
+  color:var(--accent);
+}
+.slideshow-slide{
+  padding-top:56px;
+  width:100%;
+  min-height:calc(100vh - 44px);
+}
+.slideshow-indicators{
+  position:fixed;
+  bottom:20px;
+  left:50%;
+  transform:translateX(-50%);
+  display:flex;
+  gap:10px;
+  background:rgba(0,0,0,0.7);
+  padding:10px 16px;
+  border-radius:999px;
+  z-index:100;
+}
+.slideshow-indicator{
+  width:36px;
+  height:36px;
+  border-radius:50%;
+  border:0;
+  background:rgba(255,255,255,0.3);
+  color:#fff;
+  font:600 14px var(--font);
+  cursor:pointer;
+  transition:background 0.2s ease;
+}
+.slideshow-indicator:hover{
+  background:rgba(255,255,255,0.5);
+}
+.slideshow-indicator.is-active{
+  background:var(--accent);
+}
 @media (max-width: 980px){
   .shell{grid-template-columns:220px 1fr}
   .grid-2{grid-template-columns:1fr}
