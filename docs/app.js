@@ -789,6 +789,7 @@ function mountFacilities(host, data, options = {}) {
   const { mode = "full", tvMode = false } = options;
   const showOverview = mode !== "productivity";
   const showProductivity = mode !== "overview";
+  const overviewZusHeight = tvMode ? "440px" : "";
   const f = data?.facilities ?? {};
   const teamColors = {
     Civil: "#2f80ed",
@@ -823,7 +824,7 @@ function mountFacilities(host, data, options = {}) {
   if (showOverview) {
     const zusCard = el("div", { class: "card chart-card-full" }, [
       el("div", { class: "card-title", text: "Atendimento ZUS" }),
-      el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartAtendimentoZUS" })])
+      el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}`, style: overviewZusHeight ? `height:${overviewZusHeight}` : "" }, [el("canvas", { id: "chartAtendimentoZUS" })])
     ]);
     const metricsRow = el("div", { class: "facility-priority-row" });
     const priorityCard = el("div", { class: "card" }, [
@@ -845,7 +846,7 @@ function mountFacilities(host, data, options = {}) {
   prodChartWrap = el("div", { class: `chart-wrap wide productivity-chart-wrap${tvMode ? " is-tv" : ""}` }, [el("canvas", { id: "chartProdColab" })]);
   const prodColab = el("div", { class: "card productivity-card" }, [
     el("div", { class: "card-head" }, [
-      el("div", { class: "card-title", text: "Produtividade por colaborador" }),
+      el("div", { class: "card-title", text: "Apontamento Dia Anterior" }),
       filterBar
     ]),
     prodChartWrap,
@@ -1019,7 +1020,7 @@ function mountFacilities(host, data, options = {}) {
       chart.data.datasets[0].data = filtered.map((item) => item.value);
       chart.data.datasets[0].backgroundColor = filtered.map((item) => teamColors[item.team] ?? pcColor);
       const chartHeight = tvMode
-        ? Math.min(560, Math.max(360, filtered.length * 18 + 100))
+        ? Math.min(980, Math.max(680, filtered.length * 26 + 180))
         : Math.max(340, filtered.length * 30 + 110);
       prodChartWrap.style.height = `${chartHeight}px`;
       prodEmpty.hidden = filtered.length > 0;
@@ -1049,6 +1050,7 @@ function mountFacilities(host, data, options = {}) {
 
 function mountUtilidades(host, data, options = {}) {
   const { tvMode = false } = options;
+  const zusHeight = tvMode ? "440px" : "";
   const u = data?.utilidades ?? {};
   const baseTeamColors = {
     Civil: "#2f80ed",
@@ -1088,7 +1090,7 @@ function mountUtilidades(host, data, options = {}) {
   const layout = el("div", { class: "stack-lg" });
   const zusCard = el("div", { class: "card chart-card-full" }, [
     el("div", { class: "card-title", text: "Atendimento ZUS" }),
-    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartUtilidadesZUS" })])
+    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}`, style: zusHeight ? `height:${zusHeight}` : "" }, [el("canvas", { id: "chartUtilidadesZUS" })])
   ]);
 
   const bottom = el("div", { class: "facilities-bottom" });
@@ -1097,7 +1099,7 @@ function mountUtilidades(host, data, options = {}) {
   const prodChartWrap = el("div", { class: `chart-wrap wide productivity-chart-wrap${tvMode ? " is-tv" : ""}` }, [el("canvas", { id: "chartUtilidadesProdColab" })]);
   const prodColab = el("div", { class: "card productivity-card" }, [
     el("div", { class: "card-head" }, [
-      el("div", { class: "card-title", text: "Apontamento por colaborador" }),
+      el("div", { class: "card-title", text: "Apontamento Dia Anterior" }),
       filterBar
     ]),
     prodChartWrap,
@@ -1203,6 +1205,7 @@ function mountUtilidades(host, data, options = {}) {
 
 function mountSPCI(host, data, options = {}) {
   const { tvMode = false } = options;
+  const zusHeight = tvMode ? "440px" : "";
   const u = data?.spci ?? {};
   const baseTeamColors = {
     Civil: "#2f80ed",
@@ -1243,7 +1246,7 @@ function mountSPCI(host, data, options = {}) {
   const layout = el("div", { class: "stack-lg" });
   const zusCard = el("div", { class: "card chart-card-full" }, [
     el("div", { class: "card-title", text: "Atendimento ZUS" }),
-    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartSpciZUS" })])
+    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}`, style: zusHeight ? `height:${zusHeight}` : "" }, [el("canvas", { id: "chartSpciZUS" })])
   ]);
 
   const bottom = el("div", { class: "facilities-bottom" });
@@ -1252,7 +1255,7 @@ function mountSPCI(host, data, options = {}) {
   const prodChartWrap = el("div", { class: `chart-wrap wide productivity-chart-wrap${tvMode ? " is-tv" : ""}` }, [el("canvas", { id: "chartSpciProdColab" })]);
   const prodColab = el("div", { class: "card productivity-card" }, [
     el("div", { class: "card-head" }, [
-      el("div", { class: "card-title", text: "Apontamento por colaborador" }),
+      el("div", { class: "card-title", text: "Apontamento Dia Anterior" }),
       filterBar
     ]),
     prodChartWrap,
@@ -1360,6 +1363,8 @@ function mountLSI(host, data, options = {}) {
   const { mode = "full", tvMode = false } = options;
   const showOverview = mode !== "eficacia";
   const showEficacia = mode !== "overview";
+  const zusHeight = tvMode && showOverview ? "440px" : "";
+  const eficaciaChartHeight = tvMode ? "264px" : "";
   const lsi = data?.lsi ?? {};
   const az = lsi?.atendimentoZUS ?? {};
   const azLabels = Array.isArray(az.labels) ? az.labels : [];
@@ -1371,7 +1376,7 @@ function mountLSI(host, data, options = {}) {
 
   const zusCard = showOverview ? el("div", { class: "card" }, [
     el("div", { class: "card-title", text: "Atendimento ZUS" }),
-    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartLsiAtendimentoZUS" })])
+    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}`, style: zusHeight ? `height:${zusHeight}` : "" }, [el("canvas", { id: "chartLsiAtendimentoZUS" })])
   ]) : null;
 
   if (zusCard && (!azLabels.length || !azSeries.length)) {
@@ -1413,7 +1418,7 @@ function mountLSI(host, data, options = {}) {
         el("div", { class: "card-title", text: metric?.label ?? "" }),
         el("div", { class: "lsi-chart-caption", text: `${formatNumberPtBR(metric?.evaluations ?? 0)} avaliações` }),
         el("div", { class: "lsi-chart-value", text: formatPercentValue(metric?.result ?? 0) }),
-        el("div", { class: "chart-wrap medium" }, [el("canvas", { id: `chartLsiEficacia${idx}` })])
+        el("div", { class: "chart-wrap medium", style: eficaciaChartHeight ? `height:${eficaciaChartHeight}` : "" }, [el("canvas", { id: `chartLsiEficacia${idx}` })])
       ])
     );
   });
