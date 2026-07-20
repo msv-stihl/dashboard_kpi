@@ -698,6 +698,8 @@ function updateStatusLine() {
 
 function mountGeneral(host, data, options = {}) {
   const { tvMode = false } = options;
+  const customerSatisfactionHeight = tvMode ? "288px" : "";
+  const sevenSHeight = tvMode ? "216px" : "";
   const title = el("div", { class: "section-title", text: "Acidentes" });
   const top = el("div", { class: `general-accidents-grid${tvMode ? " is-tv" : ""}` });
 
@@ -716,11 +718,11 @@ function mountGeneral(host, data, options = {}) {
 
   const csCard = el("div", { class: "card" }, [
     el("div", { class: "card-title", text: "Histórico Satisfação Cliente" }),
-    el("div", { class: "chart-wrap general-chart-wrap" }, [el("canvas", { id: "chartCustomerSatisfaction" })])
+    el("div", { class: "chart-wrap general-chart-wrap", style: customerSatisfactionHeight ? `height:${customerSatisfactionHeight}` : "" }, [el("canvas", { id: "chartCustomerSatisfaction" })])
   ]);
   const s7Card = el("div", { class: "card" }, [
     el("div", { class: "card-title", text: "Histórico 7S" }),
-    el("div", { class: "chart-wrap general-chart-wrap general-chart-wrap-compact" }, [el("canvas", { id: "chartSevenS" })])
+    el("div", { class: "chart-wrap general-chart-wrap general-chart-wrap-compact", style: sevenSHeight ? `height:${sevenSHeight}` : "" }, [el("canvas", { id: "chartSevenS" })])
   ]);
 
   bottom.append(csCard, s7Card);
@@ -789,7 +791,7 @@ function mountFacilities(host, data, options = {}) {
   const { mode = "full", tvMode = false } = options;
   const showOverview = mode !== "productivity";
   const showProductivity = mode !== "overview";
-  const overviewZusHeight = tvMode ? "440px" : "";
+  const overviewZusHeight = tvMode ? "374px" : "";
   const f = data?.facilities ?? {};
   const teamColors = {
     Civil: "#2f80ed",
@@ -1020,7 +1022,7 @@ function mountFacilities(host, data, options = {}) {
       chart.data.datasets[0].data = filtered.map((item) => item.value);
       chart.data.datasets[0].backgroundColor = filtered.map((item) => teamColors[item.team] ?? pcColor);
       const chartHeight = tvMode
-        ? Math.min(980, Math.max(680, filtered.length * 26 + 180))
+        ? Math.min(784, Math.max(544, filtered.length * 21 + 144))
         : Math.max(340, filtered.length * 30 + 110);
       prodChartWrap.style.height = `${chartHeight}px`;
       prodEmpty.hidden = filtered.length > 0;
@@ -1050,7 +1052,7 @@ function mountFacilities(host, data, options = {}) {
 
 function mountUtilidades(host, data, options = {}) {
   const { tvMode = false } = options;
-  const zusHeight = tvMode ? "440px" : "";
+  const zusHeight = tvMode ? "374px" : "";
   const u = data?.utilidades ?? {};
   const baseTeamColors = {
     Civil: "#2f80ed",
@@ -1205,7 +1207,7 @@ function mountUtilidades(host, data, options = {}) {
 
 function mountSPCI(host, data, options = {}) {
   const { tvMode = false } = options;
-  const zusHeight = tvMode ? "440px" : "";
+  const zusHeight = tvMode ? "374px" : "";
   const u = data?.spci ?? {};
   const baseTeamColors = {
     Civil: "#2f80ed",
@@ -1363,7 +1365,7 @@ function mountLSI(host, data, options = {}) {
   const { mode = "full", tvMode = false } = options;
   const showOverview = mode !== "eficacia";
   const showEficacia = mode !== "overview";
-  const zusHeight = tvMode && showOverview ? "440px" : "";
+  const zusHeight = tvMode && showOverview ? "374px" : "";
   const eficaciaChartHeight = tvMode ? "264px" : "";
   const lsi = data?.lsi ?? {};
   const az = lsi?.atendimentoZUS ?? {};
