@@ -472,6 +472,8 @@ body{
   position:relative;
   width:100%;
   min-height:calc(100vh - 32px);
+  display:flex;
+  flex-direction:column;
 }
 .slideshow-header{
   display:flex;
@@ -508,8 +510,10 @@ body{
 }
 .slideshow-slide{
   width:100%;
-  min-height:calc(100vh - 164px);
+  flex:1;
+  min-height:0;
   overflow:hidden;
+  padding-bottom:78px;
 }
 .slideshow-indicators{
   position:fixed;
@@ -548,6 +552,111 @@ body{
   max-width:none;
   width:100%;
 }
+.slideshow-slide.tv-slide-layout{
+  display:grid;
+  gap:12px;
+  align-content:stretch;
+}
+.slideshow-slide.tv-slide-layout .section-title{
+  margin:0 0 2px 2px;
+  font-size:18px;
+}
+.slideshow-slide.tv-slide-layout .section-subtitle{
+  margin:2px 0 0 2px;
+  font-size:16px;
+}
+.slideshow-slide.tv-slide-layout .small-kpis,
+.slideshow-slide.tv-slide-layout .general-accidents-grid,
+.slideshow-slide.tv-slide-layout .stack-lg,
+.slideshow-slide.tv-slide-layout .general-charts-stack,
+.slideshow-slide.tv-slide-layout .facility-priority-row,
+.slideshow-slide.tv-slide-layout .facilities-bottom,
+.slideshow-slide.tv-slide-layout .grid-2,
+.slideshow-slide.tv-slide-layout .cron-grid{
+  min-height:0;
+}
+.slideshow-slide.tv-slide-layout .small-kpis{
+  margin-bottom:0;
+  gap:12px;
+  grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));
+}
+.slideshow-slide.tv-slide-layout .general-accidents-grid{
+  gap:12px;
+}
+.slideshow-slide.tv-slide-layout .card{
+  overflow:hidden;
+}
+.slideshow-slide.tv-slide-layout .chart-panel{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+.slideshow-slide.tv-slide-layout .chart-panel .chart-wrap{
+  flex:1;
+  min-height:0;
+  height:auto !important;
+}
+.slideshow-slide.tv-slide-layout .productivity-chart-wrap{
+  min-height:0;
+}
+.slideshow-slide.tv-slide-layout .productivity-card{
+  padding:14px 16px 16px 16px;
+}
+.slideshow-slide.tv-slide-layout .kpi-card{
+  padding:10px 12px;
+}
+.slideshow-slide.tv-slide-layout .mini-kpi .mini-value{
+  font-size:36px;
+}
+.slideshow-slide.tv-slide-layout .kpi-value{
+  font-size:42px;
+}
+.slideshow-slide.tv-slide-layout .card-title{
+  margin-bottom:6px;
+}
+.tv-slide-general{
+  grid-template-rows:auto auto minmax(0, 1fr);
+}
+.tv-slide-general .general-charts-stack{
+  margin-top:0;
+  grid-template-rows:minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap:12px;
+}
+.tv-slide-facilities-overview,
+.tv-slide-utilidades,
+.tv-slide-spci{
+  grid-template-rows:auto minmax(0, 1fr);
+}
+.tv-slide-facilities-overview .stack-lg,
+.tv-slide-utilidades .stack-lg,
+.tv-slide-spci .stack-lg{
+  grid-template-rows:minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap:12px;
+}
+.tv-slide-facilities-overview .facility-priority-row{
+  gap:12px;
+}
+.tv-slide-facilities-productivity{
+  grid-template-rows:minmax(0, 1fr);
+}
+.tv-slide-lsi-overview{
+  grid-template-rows:minmax(0, 0.95fr) auto minmax(0, 1.05fr);
+}
+.tv-slide-lsi-overview .cron-grid{
+  gap:12px;
+}
+.tv-slide-lsi-overview .lsi-progress-card{
+  gap:10px;
+}
+.tv-slide-lsi-eficacia{
+  grid-template-rows:auto minmax(0, 1fr);
+}
+.tv-slide-lsi-eficacia .grid-2{
+  gap:12px;
+}
+.tv-slide-lsi-eficacia .lsi-chart-value{
+  margin-bottom:8px;
+}
 .general-accidents-grid.is-tv .kpi-value{
   font-size:48px;
 }
@@ -569,5 +678,12 @@ body{
   .slideshow-header-main{
     flex-direction:column;
     align-items:flex-start;
+  }
+  .slideshow-slide{
+    padding-bottom:88px;
+  }
+  .slideshow-slide.tv-slide-layout{
+    display:flex;
+    flex-direction:column;
   }
 }

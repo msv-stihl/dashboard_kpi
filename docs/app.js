@@ -490,6 +490,10 @@ function setTvMode(active) {
   }
 }
 
+function applyTvSlideLayout(host, ...classes) {
+  host.classList.add("tv-slide-layout", ...classes.filter(Boolean));
+}
+
 function getSlideshowSlides(data) {
   return [
     {
@@ -557,6 +561,7 @@ function mountSlideshow(host, data) {
   const renderCurrentSlide = () => {
     destroyCharts();
     slideHost.innerHTML = "";
+    slideHost.className = "slideshow-slide";
     const slide = slides[currentSlideshowIndex] || slides[0];
     titleNode.textContent = slide?.title ?? "Dashboard";
 
@@ -698,8 +703,7 @@ function updateStatusLine() {
 
 function mountGeneral(host, data, options = {}) {
   const { tvMode = false } = options;
-  const customerSatisfactionHeight = tvMode ? "245px" : "";
-  const sevenSHeight = tvMode ? "184px" : "";
+  if (tvMode) applyTvSlideLayout(host, "tv-slide-general");
   const title = el("div", { class: "section-title", text: "Acidentes" });
   const top = el("div", { class: `general-accidents-grid${tvMode ? " is-tv" : ""}` });
 
@@ -716,13 +720,13 @@ function mountGeneral(host, data, options = {}) {
 
   const bottom = el("div", { class: "general-charts-stack" });
 
-  const csCard = el("div", { class: "card" }, [
+  const csCard = el("div", { class: "card chart-panel" }, [
     el("div", { class: "card-title", text: "Histórico Satisfação Cliente" }),
-    el("div", { class: "chart-wrap general-chart-wrap", style: customerSatisfactionHeight ? `height:${customerSatisfactionHeight}` : "" }, [el("canvas", { id: "chartCustomerSatisfaction" })])
+    el("div", { class: "chart-wrap general-chart-wrap" }, [el("canvas", { id: "chartCustomerSatisfaction" })])
   ]);
-  const s7Card = el("div", { class: "card" }, [
+  const s7Card = el("div", { class: "card chart-panel" }, [
     el("div", { class: "card-title", text: "Histórico 7S" }),
-    el("div", { class: "chart-wrap general-chart-wrap general-chart-wrap-compact", style: sevenSHeight ? `height:${sevenSHeight}` : "" }, [el("canvas", { id: "chartSevenS" })])
+    el("div", { class: "chart-wrap general-chart-wrap general-chart-wrap-compact" }, [el("canvas", { id: "chartSevenS" })])
   ]);
 
   bottom.append(csCard, s7Card);
@@ -791,7 +795,7 @@ function mountFacilities(host, data, options = {}) {
   const { mode = "full", tvMode = false } = options;
   const showOverview = mode !== "productivity";
   const showProductivity = mode !== "overview";
-  const overviewZusHeight = tvMode ? "262px" : "";
+  if (tvMode) applyTvSlideLayout(host, mode === "productivity" ? "tv-slide-facilities-productivity" : "tv-slide-facilities-overview");
   const f = data?.facilities ?? {};
   const teamColors = {
     Civil: "#2f80ed",
@@ -824,20 +828,20 @@ function mountFacilities(host, data, options = {}) {
   const filterBar = el("div", { class: "filter-chips" });
   const prodEmpty = el("div", { class: "productivity-empty", text: "Nenhum colaborador encontrado para esta equipe.", hidden: true });
   if (showOverview) {
-    const zusCard = el("div", { class: "card chart-card-full" }, [
+    const zusCard = el("div", { class: "card chart-panel chart-card-full" }, [
       el("div", { class: "card-title", text: "Atendimento ZUS" }),
-      el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}`, style: overviewZusHeight ? `height:${overviewZusHeight}` : "" }, [el("canvas", { id: "chartAtendimentoZUS" })])
+      el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartAtendimentoZUS" })])
     ]);
     const metricsRow = el("div", { class: "facility-priority-row" });
-    const priorityCard = el("div", { class: "card" }, [
+    const priorityCard = el("div", { class: "card chart-panel" }, [
       el("div", { class: "card-title", text: "Prioridade alta" }),
       el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartPrioridadeAlta" })])
     ]);
-    const portasRapidasCard = el("div", { class: "card" }, [
+    const portasRapidasCard = el("div", { class: "card chart-panel" }, [
       el("div", { class: "card-title", text: "Portas rápidas pendentes" }),
       el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartPortasRapidasPendentes" })])
     ]);
-    const evaluationsCard = el("div", { class: "card" }, [
+    const evaluationsCard = el("div", { class: "card chart-panel" }, [
       el("div", { class: "card-title", text: "Avaliações" }),
       el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartAvaliacoes" })])
     ]);
@@ -846,7 +850,7 @@ function mountFacilities(host, data, options = {}) {
   }
 
   prodChartWrap = el("div", { class: `chart-wrap wide productivity-chart-wrap${tvMode ? " is-tv" : ""}` }, [el("canvas", { id: "chartProdColab" })]);
-  const prodColab = el("div", { class: "card productivity-card" }, [
+  const prodColab = el("div", { class: "card chart-panel productivity-card" }, [
     el("div", { class: "card-head" }, [
       el("div", { class: "card-title", text: "Apontamento Dia Anterior" }),
       filterBar
@@ -1021,10 +1025,12 @@ function mountFacilities(host, data, options = {}) {
       chart.data.labels = filtered.map((item) => item.name);
       chart.data.datasets[0].data = filtered.map((item) => item.value);
       chart.data.datasets[0].backgroundColor = filtered.map((item) => teamColors[item.team] ?? pcColor);
-      const chartHeight = tvMode
-        ? Math.min(784, Math.max(544, filtered.length * 21 + 144))
-        : Math.max(340, filtered.length * 30 + 110);
-      prodChartWrap.style.height = `${chartHeight}px`;
+      if (!tvMode) {
+        const chartHeight = Math.max(340, filtered.length * 30 + 110);
+        prodChartWrap.style.height = `${chartHeight}px`;
+      } else {
+        prodChartWrap.style.height = "";
+      }
       prodEmpty.hidden = filtered.length > 0;
       chart.update();
 
@@ -1052,7 +1058,7 @@ function mountFacilities(host, data, options = {}) {
 
 function mountUtilidades(host, data, options = {}) {
   const { tvMode = false } = options;
-  const zusHeight = tvMode ? "262px" : "";
+  if (tvMode) applyTvSlideLayout(host, "tv-slide-utilidades");
   const u = data?.utilidades ?? {};
   const baseTeamColors = {
     Civil: "#2f80ed",
@@ -1090,16 +1096,16 @@ function mountUtilidades(host, data, options = {}) {
   );
 
   const layout = el("div", { class: "stack-lg" });
-  const zusCard = el("div", { class: "card chart-card-full" }, [
+  const zusCard = el("div", { class: "card chart-panel chart-card-full" }, [
     el("div", { class: "card-title", text: "Atendimento ZUS" }),
-    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}`, style: zusHeight ? `height:${zusHeight}` : "" }, [el("canvas", { id: "chartUtilidadesZUS" })])
+    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartUtilidadesZUS" })])
   ]);
 
   const bottom = el("div", { class: "facilities-bottom" });
   const filterBar = el("div", { class: "filter-chips" });
   const prodEmpty = el("div", { class: "productivity-empty", text: "Nenhum colaborador encontrado para esta equipe.", hidden: true });
   const prodChartWrap = el("div", { class: `chart-wrap wide productivity-chart-wrap${tvMode ? " is-tv" : ""}` }, [el("canvas", { id: "chartUtilidadesProdColab" })]);
-  const prodColab = el("div", { class: "card productivity-card" }, [
+  const prodColab = el("div", { class: "card chart-panel productivity-card" }, [
     el("div", { class: "card-head" }, [
       el("div", { class: "card-title", text: "Apontamento Dia Anterior" }),
       filterBar
@@ -1176,10 +1182,12 @@ function mountUtilidades(host, data, options = {}) {
       chart.data.labels = filtered.map((item) => item.name);
       chart.data.datasets[0].data = filtered.map((item) => item.value);
       chart.data.datasets[0].backgroundColor = filtered.map((item) => teamColors[item.team] ?? pcColor);
-      const chartHeight = tvMode
-        ? Math.min(520, Math.max(340, filtered.length * 18 + 90))
-        : Math.max(340, filtered.length * 30 + 110);
-      prodChartWrap.style.height = `${chartHeight}px`;
+      if (!tvMode) {
+        const chartHeight = Math.max(340, filtered.length * 30 + 110);
+        prodChartWrap.style.height = `${chartHeight}px`;
+      } else {
+        prodChartWrap.style.height = "";
+      }
       prodEmpty.hidden = filtered.length > 0;
       chart.update();
 
@@ -1207,7 +1215,7 @@ function mountUtilidades(host, data, options = {}) {
 
 function mountSPCI(host, data, options = {}) {
   const { tvMode = false } = options;
-  const zusHeight = tvMode ? "262px" : "";
+  if (tvMode) applyTvSlideLayout(host, "tv-slide-spci");
   const u = data?.spci ?? {};
   const baseTeamColors = {
     Civil: "#2f80ed",
@@ -1246,16 +1254,16 @@ function mountSPCI(host, data, options = {}) {
   );
 
   const layout = el("div", { class: "stack-lg" });
-  const zusCard = el("div", { class: "card chart-card-full" }, [
+  const zusCard = el("div", { class: "card chart-panel chart-card-full" }, [
     el("div", { class: "card-title", text: "Atendimento ZUS" }),
-    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}`, style: zusHeight ? `height:${zusHeight}` : "" }, [el("canvas", { id: "chartSpciZUS" })])
+    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartSpciZUS" })])
   ]);
 
   const bottom = el("div", { class: "facilities-bottom" });
   const filterBar = el("div", { class: "filter-chips" });
   const prodEmpty = el("div", { class: "productivity-empty", text: "Nenhum colaborador encontrado para esta equipe.", hidden: true });
   const prodChartWrap = el("div", { class: `chart-wrap wide productivity-chart-wrap${tvMode ? " is-tv" : ""}` }, [el("canvas", { id: "chartSpciProdColab" })]);
-  const prodColab = el("div", { class: "card productivity-card" }, [
+  const prodColab = el("div", { class: "card chart-panel productivity-card" }, [
     el("div", { class: "card-head" }, [
       el("div", { class: "card-title", text: "Apontamento Dia Anterior" }),
       filterBar
@@ -1332,10 +1340,12 @@ function mountSPCI(host, data, options = {}) {
       chart.data.labels = filtered.map((item) => item.name);
       chart.data.datasets[0].data = filtered.map((item) => item.value);
       chart.data.datasets[0].backgroundColor = filtered.map((item) => teamColors[item.team] ?? pcColor);
-      const chartHeight = tvMode
-        ? Math.min(520, Math.max(340, filtered.length * 18 + 90))
-        : Math.max(340, filtered.length * 30 + 110);
-      prodChartWrap.style.height = `${chartHeight}px`;
+      if (!tvMode) {
+        const chartHeight = Math.max(340, filtered.length * 30 + 110);
+        prodChartWrap.style.height = `${chartHeight}px`;
+      } else {
+        prodChartWrap.style.height = "";
+      }
       prodEmpty.hidden = filtered.length > 0;
       chart.update();
 
@@ -1365,8 +1375,7 @@ function mountLSI(host, data, options = {}) {
   const { mode = "full", tvMode = false } = options;
   const showOverview = mode !== "eficacia";
   const showEficacia = mode !== "overview";
-  const zusHeight = tvMode && showOverview ? "262px" : "";
-  const eficaciaChartHeight = tvMode ? "224px" : "";
+  if (tvMode) applyTvSlideLayout(host, showOverview ? "tv-slide-lsi-overview" : "tv-slide-lsi-eficacia");
   const lsi = data?.lsi ?? {};
   const az = lsi?.atendimentoZUS ?? {};
   const azLabels = Array.isArray(az.labels) ? az.labels : [];
@@ -1376,9 +1385,9 @@ function mountLSI(host, data, options = {}) {
 
   if (!tvMode) host.append(el("div", { class: "section-title", text: "LSI" }));
 
-  const zusCard = showOverview ? el("div", { class: "card" }, [
+  const zusCard = showOverview ? el("div", { class: "card chart-panel" }, [
     el("div", { class: "card-title", text: "Atendimento ZUS" }),
-    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}`, style: zusHeight ? `height:${zusHeight}` : "" }, [el("canvas", { id: "chartLsiAtendimentoZUS" })])
+    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartLsiAtendimentoZUS" })])
   ]) : null;
 
   if (zusCard && (!azLabels.length || !azSeries.length)) {
@@ -1416,11 +1425,11 @@ function mountLSI(host, data, options = {}) {
 
   (showEficacia ? eficacia : []).forEach((metric, idx) => {
     effGrid.append(
-      el("div", { class: "card lsi-chart-card" }, [
+      el("div", { class: "card chart-panel lsi-chart-card" }, [
         el("div", { class: "card-title", text: metric?.label ?? "" }),
         el("div", { class: "lsi-chart-caption", text: `${formatNumberPtBR(metric?.evaluations ?? 0)} avaliações` }),
         el("div", { class: "lsi-chart-value", text: formatPercentValue(metric?.result ?? 0) }),
-        el("div", { class: "chart-wrap medium", style: eficaciaChartHeight ? `height:${eficaciaChartHeight}` : "" }, [el("canvas", { id: `chartLsiEficacia${idx}` })])
+        el("div", { class: "chart-wrap medium" }, [el("canvas", { id: `chartLsiEficacia${idx}` })])
       ])
     );
   });
