@@ -698,8 +698,8 @@ function updateStatusLine() {
 
 function mountGeneral(host, data, options = {}) {
   const { tvMode = false } = options;
-  const customerSatisfactionHeight = tvMode ? "288px" : "";
-  const sevenSHeight = tvMode ? "216px" : "";
+  const customerSatisfactionHeight = tvMode ? "245px" : "";
+  const sevenSHeight = tvMode ? "184px" : "";
   const title = el("div", { class: "section-title", text: "Acidentes" });
   const top = el("div", { class: `general-accidents-grid${tvMode ? " is-tv" : ""}` });
 
@@ -791,7 +791,7 @@ function mountFacilities(host, data, options = {}) {
   const { mode = "full", tvMode = false } = options;
   const showOverview = mode !== "productivity";
   const showProductivity = mode !== "overview";
-  const overviewZusHeight = tvMode ? "374px" : "";
+  const overviewZusHeight = tvMode ? "262px" : "";
   const f = data?.facilities ?? {};
   const teamColors = {
     Civil: "#2f80ed",
@@ -1052,7 +1052,7 @@ function mountFacilities(host, data, options = {}) {
 
 function mountUtilidades(host, data, options = {}) {
   const { tvMode = false } = options;
-  const zusHeight = tvMode ? "374px" : "";
+  const zusHeight = tvMode ? "262px" : "";
   const u = data?.utilidades ?? {};
   const baseTeamColors = {
     Civil: "#2f80ed",
@@ -1207,7 +1207,7 @@ function mountUtilidades(host, data, options = {}) {
 
 function mountSPCI(host, data, options = {}) {
   const { tvMode = false } = options;
-  const zusHeight = tvMode ? "374px" : "";
+  const zusHeight = tvMode ? "262px" : "";
   const u = data?.spci ?? {};
   const baseTeamColors = {
     Civil: "#2f80ed",
@@ -1365,8 +1365,8 @@ function mountLSI(host, data, options = {}) {
   const { mode = "full", tvMode = false } = options;
   const showOverview = mode !== "eficacia";
   const showEficacia = mode !== "overview";
-  const zusHeight = tvMode && showOverview ? "374px" : "";
-  const eficaciaChartHeight = tvMode ? "264px" : "";
+  const zusHeight = tvMode && showOverview ? "262px" : "";
+  const eficaciaChartHeight = tvMode ? "224px" : "";
   const lsi = data?.lsi ?? {};
   const az = lsi?.atendimentoZUS ?? {};
   const azLabels = Array.isArray(az.labels) ? az.labels : [];
