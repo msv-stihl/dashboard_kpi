@@ -470,11 +470,32 @@ function toggleSidebar(show) {
 }
 
 let slideshowInterval = null;
+let slideshowResizeHandler = null;
 let currentSlideshowIndex = 0;
 function clearSlideshowInterval() {
   if (!slideshowInterval) return;
   clearInterval(slideshowInterval);
   slideshowInterval = null;
+}
+
+function clearSlideshowResizeHandler() {
+  if (!slideshowResizeHandler) return;
+  window.removeEventListener("resize", slideshowResizeHandler);
+  slideshowResizeHandler = null;
+}
+
+function resizeVisibleCharts() {
+  for (const chart of store.charts.values()) {
+    try { chart.resize(); } catch {}
+  }
+}
+
+function syncSlideshowViewportMetrics(slideHost) {
+  if (!slideHost) return;
+  const rect = slideHost.getBoundingClientRect();
+  const safeHeight = Math.max(320, Math.round(rect.height - 8));
+  slideHost.style.setProperty("--tv-slide-height", `${safeHeight}px`);
+  resizeVisibleCharts();
 }
 
 function setTvMode(active) {
@@ -537,6 +558,7 @@ function getSlideshowSlides(data) {
 function mountSlideshow(host, data) {
   setTvMode(true);
   clearSlideshowInterval();
+  clearSlideshowResizeHandler();
 
   const slides = getSlideshowSlides(data);
   const titleNode = el("h2", { class: "slideshow-title", text: slides[0]?.title ?? "Dashboard" });
@@ -571,6 +593,7 @@ function mountSlideshow(host, data) {
 
     if (slide && typeof slide.render === "function") slide.render(slideHost);
     slideHost.scrollTop = 0;
+    requestAnimationFrame(() => syncSlideshowViewportMetrics(slideHost));
   };
 
   slides.forEach((slide, index) => {
@@ -589,6 +612,9 @@ function mountSlideshow(host, data) {
 
   slideshowContainer.append(slideshowHeader, slideHost, indicatorContainer);
   host.append(slideshowContainer);
+
+  slideshowResizeHandler = () => syncSlideshowViewportMetrics(slideHost);
+  window.addEventListener("resize", slideshowResizeHandler);
 
   renderCurrentSlide();
   slideshowInterval = setInterval(() => {
