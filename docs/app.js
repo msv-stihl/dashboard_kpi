@@ -95,6 +95,83 @@ function compareToTargetText(result, target) {
   return `${formatNumberPtBR((res / tgt) * 100, { digits: 0 })}% da meta`;
 }
 
+const CRONOGRAMA_LEVEL_CONFIG = {
+  "Limpeza de Salas": {
+    targets: [80, 90],
+    thresholds: [
+      { max: 80, color: "red", label: "abaixo 80%" },
+      { min: 80, max: 90, color: "yellow", label: "80%–90%" },
+      { min: 90, color: "green", label: "acima 90%" }
+    ]
+  },
+  "Limpeza de Banheiros": {
+    targets: [85, 95, 100],
+    thresholds: [
+      { max: 85, color: "red", label: "abaixo 85%" },
+      { min: 85, max: 95, color: "orange", label: "85%–95%" },
+      { min: 95, max: 100, color: "yellow", label: "95%–99,9%" },
+      { min: 100, color: "green", label: "100%" }
+    ]
+  },
+  "Recolhimento Resíduos": {
+    targets: [85, 95, 100],
+    thresholds: [
+      { max: 85, color: "red", label: "abaixo 85%" },
+      { min: 85, max: 95, color: "orange", label: "85%–95%" },
+      { min: 95, max: 100, color: "yellow", label: "95%–99,9%" },
+      { min: 100, color: "green", label: "100%" }
+    ]
+  },
+  "Limpeza de Piso": {
+    targets: [85, 95, 100],
+    thresholds: [
+      { max: 85, color: "red", label: "abaixo 85%" },
+      { min: 85, max: 95, color: "orange", label: "85%–95%" },
+      { min: 95, max: 100, color: "yellow", label: "95%–99,9%" },
+      { min: 100, color: "green", label: "100%" }
+    ]
+  },
+  "Limpeza Técnica": {
+    targets: [90],
+    thresholds: [
+      { max: 90, color: "red", label: "abaixo 90%" },
+      { min: 90, color: "green", label: "acima 90%" }
+    ]
+  },
+  "Jardinagem": {
+    targets: [90],
+    thresholds: [
+      { max: 90, color: "red", label: "abaixo 90%" },
+      { min: 90, color: "green", label: "acima 90%" }
+    ]
+  }
+};
+
+function getCronogramaConfig(label) {
+  const key = String(label ?? "").trim();
+  if (CRONOGRAMA_LEVEL_CONFIG[key]) return CRONOGRAMA_LEVEL_CONFIG[key];
+  return {
+    targets: [90],
+    thresholds: [
+      { max: 90, color: "red", label: "abaixo 90%" },
+      { min: 90, color: "green", label: "acima 90%" }
+    ]
+  };
+}
+
+function getCronogramaLevel(label, result) {
+  const cfg = getCronogramaConfig(label);
+  const value = Number(result ?? 0);
+  for (const t of cfg.thresholds) {
+    const aboveMin = t.min == null || value >= t.min;
+    const belowMax = t.max == null || value < t.max;
+    const atMax = t.max != null && value >= 100 && t.min >= 100;
+    if (aboveMin && (belowMax || atMax)) return { color: t.color, label: t.label, targets: cfg.targets };
+  }
+  const last = cfg.thresholds[cfg.thresholds.length - 1];
+  return { color: last?.color || "green", label: last?.label || "", targets: cfg.targets };
+}
+
 function darkenColor(color, amount = 0.2) {
   const value = String(color ?? "").trim();
   const hex = value.replace("#", "");
@@ -1424,25 +1501,72 @@ function mountLSI(host, data, options = {}) {
   const cronGrid = showOverview ? el("div", { class: "lsi-grid cron-grid" }) : null;
 
   for (const metric of showOverview ? cronogramas : []) {
+    const label = String(metric?.label ?? "");
     const result = Number(metric?.result ?? 0);
-    const target = Number(metric?.target ?? 0);
-    const scale = Math.max(result, target, 100, 1);
-    const fillPct = clamp((result / scale) * 100, 0, 100);
-    const targetPct = clamp((target / scale) * 100, 0, 100);
+    const level = getCronogramaLevel(label, result);
+    const targets = Array.isArray(level.targets) && level.targets.length ? level.targets : [Number(metric?.target ?? 90)];
+    const scale = 100;
+    const fillPct = clamp(result, 0, 100);
+    const highestTarget = targets[targets.length - 1];
+    const isOnTarget = result >= highestTarget;
+    const fillColorClass = ` is-${level.color || "green"}`;
+
+    const targetMarkers = targets.map((tgt, idx) => {
+      const leftPct = clamp(Number(tgt) / scale * 100, 0, 100);
+      const levelClass = idx === 0 ? " is-level-1" : idx === 1 ? " is-level-2" : " is-level-3";
+      return el("div", {
+        class: `lsi-bullet-target${levelClass}`,
+        style: `left:${leftPct}%`,
+        title: `Meta ${idx + 1}: ${formatPercentValue(tgt)}`
+      });
+    });
+
+    const targetChips = targets.map((tgt, idx) => {
+      const isLast = idx === targets.length - 1;
+      return el("span", {
+        class: `lsi-metric-chip${isLast ? "" : " is-muted"}`,
+        text: `Meta ${idx + 1} ${formatPercentValue(tgt)}`
+      });
+    });
+
+    const thresholdItems = (getCronogramaConfig(label).thresholds || []).map((t) => {
+      const dotColor =
+        t.color === "red" ? "#d94b44" :
+        t.color === "orange" ? "#ff7b2e" :
+        t.color === "yellow" ? "#f5c231" :
+        "#6ec140";
+      return el("span", { class: "lsi-bullet-legend-item" }, [
+        el("span", { class: "lsi-bullet-legend-dot", style: `background:${dotColor}` }),
+        el("span", { text: t.label })
+      ]);
+    });
+
+    const bulletChildren = [
+      el("div", { class: `lsi-bullet-fill${fillColorClass}`, style: `width:${fillPct}%` }),
+      ...targetMarkers
+    ];
+
+    const footerText = (() => {
+      if (result >= highestTarget) return "Maior meta atingida";
+      const reached = targets.filter((t) => result >= t).length;
+      if (reached === 0) return `Abaixo da 1ª meta (${formatPercentValue(targets[0])})`;
+      const next = targets[reached];
+      return `${reached} de ${targets.length} meta(s) — próxima: ${formatPercentValue(next)}`;
+    })();
+
+    const cardChildren = [
+      el("div", { class: "card-title", text: label }),
+      el("div", { class: "lsi-metric-line" }, [
+        el("span", { class: "lsi-metric-chip", text: `Resultado ${formatPercentValue(result)}` }),
+        ...targetChips
+      ]),
+      el("div", { class: "lsi-bullet-track" }, bulletChildren),
+      el("div", { class: "lsi-bullet-legend" }, thresholdItems),
+      el("div", { class: "lsi-bullet-footer", text: footerText })
+    ];
 
     cronGrid.append(
-      el("div", { class: `card lsi-progress-card${target > 0 && result >= target ? " is-on-target" : ""}` }, [
-        el("div", { class: "card-title", text: metric?.label ?? "" }),
-        el("div", { class: "lsi-metric-line" }, [
-          el("span", { class: "lsi-metric-chip", text: `Resultado ${formatPercentValue(result)}` }),
-          el("span", { class: "lsi-metric-chip is-muted", text: `Meta ${formatPercentValue(target)}` })
-        ]),
-        el("div", { class: "lsi-bullet-track" }, [
-          el("div", { class: "lsi-bullet-fill", style: `width:${fillPct}%` }),
-          el("div", { class: "lsi-bullet-target", style: `left:${targetPct}%` })
-        ]),
-        el("div", { class: "lsi-bullet-footer", text: compareToTargetText(result, target) })
-      ])
+      el("div", { class: `card lsi-progress-card${isOnTarget ? " is-on-target" : ""}` }, cardChildren)
     );
   }
 
