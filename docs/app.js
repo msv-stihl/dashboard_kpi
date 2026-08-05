@@ -1521,14 +1521,6 @@ function mountLSI(host, data, options = {}) {
       });
     });
 
-    const targetChips = targets.map((tgt, idx) => {
-      const isLast = idx === targets.length - 1;
-      return el("span", {
-        class: `lsi-metric-chip${isLast ? "" : " is-muted"}`,
-        text: `Meta ${idx + 1} ${formatPercentValue(tgt)}`
-      });
-    });
-
     const thresholdItems = (getCronogramaConfig(label).thresholds || []).map((t) => {
       const dotColor =
         t.color === "red" ? "#d94b44" :
@@ -1557,8 +1549,7 @@ function mountLSI(host, data, options = {}) {
     const cardChildren = [
       el("div", { class: "card-title", text: label }),
       el("div", { class: "lsi-metric-line" }, [
-        el("span", { class: "lsi-metric-chip", text: `Resultado ${formatPercentValue(result)}` }),
-        ...targetChips
+        el("span", { class: "lsi-metric-chip", text: `Resultado ${formatPercentValue(result)}` })
       ]),
       el("div", { class: "lsi-bullet-track" }, bulletChildren),
       el("div", { class: "lsi-bullet-legend" }, thresholdItems),
