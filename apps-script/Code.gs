@@ -2351,10 +2351,10 @@ function buildLsiRotinasPayload_(e) {
   const previousColumns = columnsByDate.get(previousDateIso) || [];
 
   const cronogramas = [
-    { id: "salas", label: "Limpeza de Salas", startRow: 7, endRow: 470 },
-    { id: "banheiros", label: "Limpeza de Banheiros", startRow: 472, endRow: 591 },
-    { id: "residuos", label: "Recolhimento de Residuos", startRow: 593, endRow: 744 },
-    { id: "piso", label: "Limpeza de Piso", startRow: 746, endRow: 766 }
+    { id: "salas", label: "Limpeza de Salas", startRow: 7, endRow: 469 },
+    { id: "banheiros", label: "Limpeza de Banheiros", startRow: 471, endRow: 590 },
+    { id: "residuos", label: "Recolhimento de Residuos", startRow: 592, endRow: 743 },
+    { id: "piso", label: "Limpeza de Piso", startRow: 745, endRow: 765 }
   ];
 
   const ambienteSet = new Set();
