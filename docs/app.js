@@ -941,7 +941,7 @@ function mountFacilities(host, data, options = {}) {
       el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartPrioridadeAlta" })])
     ]);
     const portasRapidasCard = el("div", { class: "card chart-panel" }, [
-      el("div", { class: "card-title", text: "Portas rápidas pendentes" }),
+      el("div", { class: "card-title", text: "Acompanhamentos" }),
       el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartPortasRapidasPendentes" })])
     ]);
     const evaluationsCard = el("div", { class: "card chart-panel" }, [

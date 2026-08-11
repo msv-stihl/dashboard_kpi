@@ -807,11 +807,15 @@
       });
     }
 
-    async function fetchPayload(dateIso){
+    async function fetchPayload(dateIso, options){
       if(!endpoint) return null;
       const url = new URL(endpoint);
       url.searchParams.set("view", "lsi_rotinas");
       url.searchParams.set("date", dateIso);
+      if (options && options.noCache) {
+        url.searchParams.set("noCache", "1");
+        url.searchParams.set("_t", String(Date.now()));
+      }
 
       const transport = String(cfg.transport || "auto").toLowerCase();
       if(transport === "jsonp") return fetchJsonp(url.toString());
@@ -1096,7 +1100,8 @@
       renderCards(ambientes);
     }
 
-    async function load(dateIso){
+    async function load(dateIso, options){
+      const useNoCache = !!(options && options.noCache);
       state.filters.date = dateIso;
       if(!endpoint){
         state.payload = {
@@ -1112,7 +1117,6 @@
 
       setLoading(true);
       try{
-        // 1. Salvar os valores ANTERIORES antes de buscar novos dados (se já temos payload)
         if (state.payload) {
           const ambientesAnteriores = aggregateByEnvironment(filteredItems());
           ambientesAnteriores.forEach((ambiente) => {
@@ -1120,19 +1124,58 @@
           });
         }
 
-        // 2. Buscar novos dados
-        const payload = await fetchPayload(dateIso);
+        const payload = await fetchPayload(dateIso, { noCache: useNoCache });
         state.payload = payload && typeof payload === "object" ? payload : { items: [] };
 
-        // 3. Verificar quais ambientes tiveram aumento de leitura e atualizar greenShifts
+        // --- Debug ---
+        const items = Array.isArray(state.payload?.items) ? state.payload.items : [];
+        const pisoItems = items.filter((i) => i.cronogramaId === "piso");
+        const p01Items = items.filter((i) => {
+          const amb = String(i.ambiente || "").toUpperCase();
+          return amb.startsWith("P01") || amb.includes("P01");
+        });
+        const p01PisoItems = pisoItems.filter((i) => {
+          const amb = String(i.ambiente || "").toUpperCase();
+          return amb.startsWith("P01") || amb.includes("P01");
+        });
+        const meta = state.payload.meta || {};
+        console.group("[DEBUG lsi_rotinas] payload recebido");
+        console.log("Total items:", items.length, "| Piso items:", pisoItems.length, "| P01 items (todos blocos):", p01Items.length, "| P01 no Piso:", p01PisoItems.length);
+        if (pisoItems.length) console.log("Lista de ambientes no bloco Piso:", pisoItems.map((i) => `[${i.rowNumber}] ${i.ambiente} (${i.cronogramaLabel})`));
+        if (p01Items.length) console.log("Todos os itens P01:", p01Items.map((i) => `[${i.rowNumber}] bloco=${i.cronogramaId} amb=${i.ambiente}`));
+        if (!p01PisoItems.length && !p01Items.length) console.warn("Nenhum item P01 encontrado em nenhum bloco. Verifique se a linha 745 tem o ambiente preenchido na coluna B da aba LSI.");
+        if (meta.blocos) {
+          console.log("Resumo dos blocos (backend):");
+          meta.blocos.forEach((b) => {
+            console.log(`  • ${b.blocoLabel} (${b.blocoId}) linhas ${b.startRow}-${b.endRow} total=${b.totalRows} comAmbiente=${b.linhasComAmbiente} vazias=${b.linhasSemAmbiente}`);
+          });
+        }
+        if (meta.linhasPiso && meta.linhasPiso.length) {
+          console.table(meta.linhasPiso);
+          const linha745 = meta.linhasPiso.find((l) => l.row === 745);
+          if (linha745) {
+            console.log("🔍 LINHA 745 ENCONTRADA no backend:", linha745);
+            if (linha745.skipped) {
+              console.warn("⚠️  Linha 745 foi SKIPADA (pulada) motivo:", linha745.motivo, "| Coluna B raw:", linha745.colB_raw);
+            } else {
+              console.log("✅ Linha 745 foi incluída. Ambiente:", linha745.ambiente, "| Frequência:", linha745.colF_freqRaw, "| Turnos:", linha745.colG_turnosRaw);
+            }
+          } else {
+            console.warn("⚠️  NÃO encontrei a linha 745 no bloco piso. Verifique se a linha 745 realmente contém dados na aba LSI.");
+          }
+        } else {
+          console.warn("Nenhuma informação detalhada das linhas de piso veio do backend.");
+        }
+        console.log("Meta completa do backend:", meta);
+        console.groupEnd();
+        // --- fim debug ---
+
         const ambientesNovos = aggregateByEnvironment(filteredItems());
         const currentShifts = getCurrentTurnos();
         ambientesNovos.forEach((ambiente) => {
-          // Se é a primeira carga, apenas salva o valor inicial sem marcar como aumento
           if (!state.previousReadings.has(ambiente.ambiente)) {
             state.previousReadings.set(ambiente.ambiente, ambiente.totalActual);
           } else if (hasReadingIncreased(ambiente.ambiente, ambiente.totalActual)) {
-            // Atualizar greenShifts para este ambiente
             state.greenShifts[ambiente.ambiente] = {
               lastIncreaseTime: Date.now(),
               activeShifts: [...currentShifts]
@@ -1140,7 +1183,6 @@
             console.log(`Atualizando greenShifts para ${ambiente.ambiente}:`, state.greenShifts[ambiente.ambiente]);
           }
         });
-        // Salvar no localStorage
         saveGreenShifts(state.greenShifts);
 
       } catch (error){
@@ -1153,9 +1195,7 @@
         };
       } finally {
         setLoading(false);
-        // 4. Renderizar
         render();
-        // 5. Salvar os novos valores como "anteriores" para a próxima atualização
         const ambientesNovos = aggregateByEnvironment(filteredItems());
         ambientesNovos.forEach((ambiente) => {
           state.previousReadings.set(ambiente.ambiente, ambiente.totalActual);
@@ -1207,16 +1247,16 @@
     if(backBtn) backBtn.addEventListener("click", goBack);
 
     if(refreshBtn) refreshBtn.addEventListener("click", () => {
-      load(state.filters.date || todayIso);
+      load(state.filters.date || todayIso, { noCache: true });
     });
 
     dateFilter.value = todayIso;
-    load(todayIso);
+    load(todayIso, { noCache: true });
 
     // Atualiza automaticamente a cada 10 minutos para verificar novas leituras
     setInterval(() => {
       if (!state.loading) {
-        load(state.filters.date || todayIso);
+        load(state.filters.date || todayIso, { noCache: true });
       }
     }, 600000);
   })();

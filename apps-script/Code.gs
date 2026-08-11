@@ -1660,6 +1660,7 @@ function buildDashboardPayload_() {
     const retrabalho = getA1_(ss, "dash", "B81");
     const servExt = getA1_(ss, "dash", "B86");
     const portasRapidasPendentes = getA1_(ss, "dash", "E86");
+    const alpinistas = getA1_(ss, "dash", "E89");
     const preventivas = getA1_(ss, "dash", "B92");
     const zu = getRangeA1_(ss, "dash", "A24:AF27");
     const prio = getRangeA1_(ss, "dash", "A32:B36");
@@ -1698,9 +1699,9 @@ function buildDashboardPayload_() {
           colors: []
         },
         portasRapidasPendentes: {
-          labels: ["Pendentes"],
-          values: [Number(portasRapidasPendentes ?? 0)],
-          colors: ["#ff4d00"]
+          labels: ["Portas Rápidas", "Alpinistas"],
+          values: [Number(portasRapidasPendentes ?? 0), Number(alpinistas ?? 0)],
+          colors: ["#ff4d00", "#ff4d00"]
         },
         avaliacoes: {
           labels: filteredAvalPairs.map((p) => p.label),
@@ -1782,6 +1783,11 @@ function buildDashboardPayload_() {
     fk.portas_rapidas_pendente ??
     0
   );
+  const alpinistas = Number(
+    fk.alpinistas ??
+    fk.alpinista ??
+    0
+  );
   const pcItems = pcRows.map((r) => ({
     name: String(r.name ?? r.nome ?? "").trim(),
     value: Number(r.value ?? r.valor ?? 0),
@@ -1814,9 +1820,9 @@ function buildDashboardPayload_() {
         colors: paFilteredRows.map((r) => String(r.color ?? r.cor ?? "")).filter((c) => c)
       },
       portasRapidasPendentes: {
-        labels: ["Pendentes"],
-        values: [portasRapidasPendentes],
-        colors: ["#ff4d00"]
+        labels: ["Portas Rápidas", "Alpinistas"],
+        values: [portasRapidasPendentes, alpinistas],
+        colors: ["#ff4d00", "#ff4d00"]
       },
       avaliacoes: {
         labels: avFilteredRows.map((r) => String(r.label ?? r.nome ?? "")),
@@ -2273,16 +2279,20 @@ function buildLsiRotinasPayload_(e) {
   const selectedDateParam = e && e.parameter ? String(e.parameter.date || "").trim() : "";
   const selectedDate = parseIsoDate_(selectedDateParam) || now;
   const selectedDateIso = toIsoDate_(selectedDate);
+  const bypassCacheParam = e && e.parameter ? String(e.parameter.noCache || e.parameter.bypass || "").trim() : "";
+  const bypassCache = bypassCacheParam === "1" || bypassCacheParam.toLowerCase() === "true";
   const cache = CacheService.getScriptCache();
   const cacheKey = `lsi_rotinas:${cfg.SPREADSHEET_ID}:${selectedDateIso}`;
-  const cached = cache.get(cacheKey);
-  if (cached) {
-    try { return JSON.parse(cached); } catch {}
+  if (!bypassCache) {
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      try { return JSON.parse(cached); } catch {}
+    }
   }
   const putCacheIfFits_ = (value) => {
     try {
       const json = JSON.stringify(value);
-      if (json.length <= 95000) cache.put(cacheKey, json, 120);
+      if (json.length <= 95000) cache.put(cacheKey, json, 60);
     } catch {}
   };
 
@@ -2354,7 +2364,7 @@ function buildLsiRotinasPayload_(e) {
     { id: "salas", label: "Limpeza de Salas", startRow: 7, endRow: 469 },
     { id: "banheiros", label: "Limpeza de Banheiros", startRow: 471, endRow: 590 },
     { id: "residuos", label: "Recolhimento de Residuos", startRow: 592, endRow: 743 },
-    { id: "piso", label: "Limpeza de Piso", startRow: 745, endRow: 765 }
+    { id: "piso", label: "Limpeza de Piso", startRow: 745, endRow: 800 }
   ];
 
   const ambienteSet = new Set();
@@ -2363,11 +2373,14 @@ function buildLsiRotinasPayload_(e) {
   let scanned = 0;
   let kept = 0;
   let ignoredOnDemand = 0;
+  const debugBlocos = [];
+  const debugLinhasPiso = [];
 
   for (const bloco of cronogramas) {
     const rowCount = bloco.endRow - bloco.startRow + 1;
     const baseRows = sheet.getRange(bloco.startRow, 2, rowCount, 6).getValues();
     const readRows = sheet.getRange(bloco.startRow, 9, rowCount, lastCol - 8).getValues();
+    const blocScan = { blocoId: bloco.id, blocoLabel: bloco.label, startRow: bloco.startRow, endRow: bloco.endRow, totalRows: rowCount, linhasComAmbiente: 0, linhasSemAmbiente: 0, amostraAmbientes: [] };
 
     for (let idx = 0; idx < baseRows.length; idx++) {
       const row = baseRows[idx] || [];
@@ -2375,7 +2388,23 @@ function buildLsiRotinasPayload_(e) {
       scanned++;
 
       const ambiente = String(row[0] == null ? "" : row[0]).trim();
-      if (!ambiente) continue;
+      const rowNumber = bloco.startRow + idx;
+      if (!ambiente) {
+        blocScan.linhasSemAmbiente++;
+        if (bloco.id === "piso") debugLinhasPiso.push({ row: rowNumber, ambiente: "", colB_raw: row[0], skipped: true, motivo: "ambiente_vazio" });
+        continue;
+      }
+      blocScan.linhasComAmbiente++;
+      if (blocScan.amostraAmbientes.length < 15) blocScan.amostraAmbientes.push(ambiente);
+      if (bloco.id === "piso") debugLinhasPiso.push({
+        row: rowNumber,
+        ambiente: ambiente,
+        colB_raw: row[0],
+        colE_diasRaw: row[3],
+        colF_freqRaw: row[4],
+        colG_turnosRaw: row[5],
+        skipped: false
+      });
 
       const dayCodes = parseDayList_(row[3]);
       const frequencyCode = Math.floor(toNumber_(row[4]));
@@ -2387,7 +2416,6 @@ function buildLsiRotinasPayload_(e) {
       const dueToday = isScheduledToday_(dayCodes, frequencyCode);
       const expected = expectedReads_(frequencyCode, dueToday, turnos);
       const status = statusFromCounts_(actual, expected);
-      const rowNumber = bloco.startRow + idx;
 
       if (frequencyCode === 6) ignoredOnDemand++;
 
@@ -2414,6 +2442,7 @@ function buildLsiRotinasPayload_(e) {
       turnos.forEach((turno) => turnoSet.add(turno));
       kept++;
     }
+    debugBlocos.push(blocScan);
   }
 
   const grouped = new Map();
@@ -2485,7 +2514,10 @@ function buildLsiRotinasPayload_(e) {
       kept,
       ignoredOnDemand,
       selectedDateFound: selectedColumns.length > 0,
-      sheet: sheet.getName()
+      sheet: sheet.getName(),
+      blocos: debugBlocos,
+      linhasPiso: debugLinhasPiso,
+      bypassCacheUsed: !!bypassCache
     }
   };
 
@@ -2644,7 +2676,7 @@ function buildClientSchedulePayload_(e) {
     { id: "salas", label: "Limpeza de Salas", startRow: 7, endRow: 469 },
     { id: "banheiros", label: "Limpeza de Banheiros", startRow: 471, endRow: 590 },
     { id: "residuos", label: "Recolhimento de Residuos", startRow: 592, endRow: 743 },
-    { id: "piso", label: "Limpeza de Piso", startRow: 745, endRow: 765 }
+    { id: "piso", label: "Limpeza de Piso", startRow: 745, endRow: 800 }
   ];
 
   const grouped = new Map();
