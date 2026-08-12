@@ -923,7 +923,27 @@
 
   DATA = buildMockData();
 
-  function fetchJsonp(urlString){
+  const _FETCH_TIMEOUT_MS = 60000;
+  const _FETCH_MAX_RETRIES = 3;
+  const _FETCH_RETRY_BASE_DELAY = 1500;
+
+  function _sleep(ms){ return new Promise((r)=>setTimeout(r, ms)); }
+
+  async function _withRetries(fn, { maxRetries = _FETCH_MAX_RETRIES, baseDelay = _FETCH_RETRY_BASE_DELAY } = {}){
+    let lastErr = null;
+    for(let attempt = 0; attempt <= maxRetries; attempt++){
+      try{ return await fn(attempt); }
+      catch(err){
+        lastErr = err;
+        if(attempt >= maxRetries) break;
+        const delay = baseDelay * Math.pow(2, attempt) + Math.floor(Math.random() * 500);
+        await _sleep(delay);
+      }
+    }
+    throw lastErr;
+  }
+
+  function fetchJsonp(urlString, { timeoutMs = _FETCH_TIMEOUT_MS } = {}){
     return new Promise((resolve, reject)=>{
       const cbParam = String(cfg.jsonpCallbackParam || 'callback');
       const cbName = '__jsonp_cb_' + Date.now() + '_' + Math.random().toString(16).slice(2);
@@ -955,10 +975,25 @@
       const timer = setTimeout(()=>{
         cleanup();
         reject(new Error('Timeout no JSONP'));
-      }, 20000);
+      }, timeoutMs);
 
       document.head.appendChild(script);
     });
+  }
+
+  function _fetchWithTimeout(url, options = {}, timeoutMs = _FETCH_TIMEOUT_MS){
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const signal = controller ? controller.signal : undefined;
+    const opts = signal ? { ...options, signal } : { ...options };
+    let timeoutId = null;
+    const cleanup = ()=>{ if(timeoutId){ clearTimeout(timeoutId); timeoutId = null; } };
+    const timeoutPromise = new Promise((_, reject)=>{
+      timeoutId = setTimeout(()=>{
+        if(controller){ try{ controller.abort(); }catch{} }
+        reject(new Error('Timeout na requisição'));
+      }, timeoutMs);
+    });
+    return Promise.race([fetch(url, opts).finally(cleanup), timeoutPromise]);
   }
 
   async function fetchWeekData(monday){
@@ -966,26 +1001,30 @@
     const key = monday.toISOString().slice(0, 10);
     if(remoteCache.has(key)) return remoteCache.get(key);
 
-    const url = new URL(remoteEndpoint);
-    url.searchParams.set('view', 'prog_sem');
-    url.searchParams.set('weekStart', key);
+    const baseUrl = new URL(remoteEndpoint);
+    baseUrl.searchParams.set('view', 'prog_sem');
+    baseUrl.searchParams.set('weekStart', key);
 
-    let payload;
-    const transport = String(cfg.transport || 'auto').toLowerCase();
-    if(transport === 'jsonp') payload = await fetchJsonp(url.toString());
-    else if(transport === 'fetch') {
-      const res = await fetch(url.toString(), { method:'GET', mode:'cors', cache:'no-store' });
-      if(!res.ok) throw new Error('HTTP ' + res.status);
-      payload = await res.json();
-    } else {
-      try{
-        payload = await fetchJsonp(url.toString());
-      } catch {
-        const res = await fetch(url.toString(), { method:'GET', mode:'cors', cache:'no-store' });
+    const payload = await _withRetries(async () => {
+      const url = new URL(baseUrl.toString());
+      const transport = String(cfg.transport || 'auto').toLowerCase();
+      let result;
+      if(transport === 'jsonp') result = await fetchJsonp(url.toString());
+      else if(transport === 'fetch') {
+        const res = await _fetchWithTimeout(url.toString(), { method:'GET', mode:'cors', cache:'no-store' });
         if(!res.ok) throw new Error('HTTP ' + res.status);
-        payload = await res.json();
+        result = await res.json();
+      } else {
+        try{
+          result = await fetchJsonp(url.toString());
+        } catch {
+          const res = await _fetchWithTimeout(url.toString(), { method:'GET', mode:'cors', cache:'no-store' });
+          if(!res.ok) throw new Error('HTTP ' + res.status);
+          result = await res.json();
+        }
       }
-    }
+      return result;
+    });
 
     remoteCache.set(key, payload);
     return payload;

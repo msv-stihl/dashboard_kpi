@@ -700,7 +700,33 @@ function mountSlideshow(host, data) {
   }, 20000);
 }
 
-function fetchJsonp(urlString, { force = false } = {}) {
+const FETCH_TIMEOUT_MS = 60000;
+const FETCH_MAX_RETRIES = 3;
+const FETCH_RETRY_BASE_DELAY_MS = 1500;
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function withRetries(fn, { maxRetries = FETCH_MAX_RETRIES, baseDelay = FETCH_RETRY_BASE_DELAY_MS, onRetry } = {}) {
+  let lastErr = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn(attempt);
+    } catch (err) {
+      lastErr = err;
+      if (attempt >= maxRetries) break;
+      const delay = baseDelay * Math.pow(2, attempt) + Math.floor(Math.random() * 500);
+      if (typeof onRetry === "function") {
+        try { onRetry(err, attempt + 1, maxRetries, delay); } catch {}
+      }
+      await sleep(delay);
+    }
+  }
+  throw lastErr;
+}
+
+function fetchJsonp(urlString, { force = false, timeoutMs = FETCH_TIMEOUT_MS } = {}) {
   return new Promise((resolve, reject) => {
     const cbParam = String(cfg.jsonpCallbackParam || "callback");
     const cbName = `__jsonp_cb_${Date.now()}_${Math.random().toString(16).slice(2)}`;
@@ -733,10 +759,38 @@ function fetchJsonp(urlString, { force = false } = {}) {
     const timer = setTimeout(() => {
       cleanup();
       reject(new Error("Timeout no JSONP"));
-    }, 15000);
+    }, timeoutMs);
 
     document.head.appendChild(script);
   });
+}
+
+function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const signal = controller ? controller.signal : undefined;
+  const opts = signal ? { ...options, signal } : { ...options };
+
+  let timeoutId = null;
+  const cleanup = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+  };
+
+  const timeoutPromise = new Promise((_, reject) => {
+    timeoutId = setTimeout(() => {
+      if (controller) {
+        try { controller.abort(); } catch {}
+      }
+      reject(new Error("Timeout na requisição"));
+    }, timeoutMs);
+  });
+
+  return Promise.race([
+    fetch(url, opts).finally(cleanup),
+    timeoutPromise
+  ]);
 }
 
 async function fetchDashboardData({ force = false } = {}) {
@@ -753,26 +807,37 @@ async function fetchDashboardData({ force = false } = {}) {
       return store.data;
     }
     const transport = String(cfg.transport || "auto").toLowerCase();
-    const url = new URL(endpoint);
-    if (force) url.searchParams.set("force", String(Date.now()));
+    const baseUrl = new URL(endpoint);
+    if (force) baseUrl.searchParams.set("force", String(Date.now()));
 
-    let payload;
-    if (transport === "jsonp") {
-      payload = await fetchJsonp(url.toString(), { force });
-    } else if (transport === "fetch") {
-      const res = await fetch(url.toString(), { method: "GET", mode: "cors", cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      payload = await res.json();
-    } else {
-      try {
-        const res = await fetch(url.toString(), { method: "GET", mode: "cors", cache: "no-store" });
+    let retryInfo = "";
+    const onRetry = (_err, attempt, max, delay) => {
+      retryInfo = ` (tentativa ${attempt}/${max} em ${(delay/1000).toFixed(1)}s)`;
+      setLastUpdatedText(`Carregando${retryInfo}...`);
+    };
+
+    const payload = await withRetries(async () => {
+      const url = new URL(baseUrl.toString());
+      let result;
+      if (transport === "jsonp") {
+        result = await fetchJsonp(url.toString(), { force });
+      } else if (transport === "fetch") {
+        const res = await fetchWithTimeout(url.toString(), { method: "GET", mode: "cors", cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        payload = await res.json();
-      } catch {
-        payload = await fetchJsonp(url.toString(), { force });
+        result = await res.json();
+      } else {
+        try {
+          const res = await fetchWithTimeout(url.toString(), { method: "GET", mode: "cors", cache: "no-store" });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          result = await res.json();
+        } catch (fetchErr) {
+          result = await fetchJsonp(url.toString(), { force });
+        }
       }
-    }
-    if (!payload || typeof payload !== "object") throw new Error("Resposta inválida");
+      if (!result || typeof result !== "object") throw new Error("Resposta inválida");
+      return result;
+    }, { onRetry });
+
     store.data = payload;
     store.lastError = "";
     store.lastFetchAt = new Date();
