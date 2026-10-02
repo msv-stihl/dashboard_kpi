@@ -461,26 +461,26 @@ function sampleData() {
       },
       produtividadePorColaborador: {
         items: [
-          { name: "COLABORADOR FAC 01", value: 7.2, team: "Civil" },
-          { name: "COLABORADOR FAC 02", value: 7.8, team: "Civil" },
-          { name: "COLABORADOR FAC 03", value: 6.9, team: "Civil" },
-          { name: "COLABORADOR FAC 04", value: 8.0, team: "Civil" },
-          { name: "COLABORADOR FAC 05", value: 7.5, team: "Civil" },
-          { name: "COLABORADOR FAC 06", value: 6.7, team: "Civil" },
-          { name: "COLABORADOR FAC 07", value: 7.4, team: "Elétrica" },
-          { name: "COLABORADOR FAC 08", value: 7.0, team: "Elétrica" },
-          { name: "COLABORADOR FAC 09", value: 7.9, team: "Elétrica" },
-          { name: "COLABORADOR FAC 10", value: 6.6, team: "Elétrica" },
-          { name: "COLABORADOR FAC 11", value: 8.1, team: "Elétrica" },
-          { name: "COLABORADOR FAC 12", value: 7.3, team: "Elétrica" },
-          { name: "COLABORADOR FAC 13", value: 6.8, team: "Refrigeração" },
-          { name: "COLABORADOR FAC 14", value: 7.7, team: "Refrigeração" },
-          { name: "COLABORADOR FAC 15", value: 7.1, team: "Refrigeração" },
-          { name: "COLABORADOR FAC 16", value: 7.6, team: "Refrigeração" },
-          { name: "COLABORADOR FAC 17", value: 6.7, team: "Refrigeração" },
-          { name: "COLABORADOR FAC 18", value: 8.0, team: "Pintura" },
-          { name: "COLABORADOR FAC 19", value: 7.0, team: "Pintura" },
-          { name: "COLABORADOR FAC 20", value: 6.9, team: "Pintura" }
+          { name: "Andrey Hipolito", value: 7.8, team: "Civil" },
+          { name: "Alexandre Magalhães", value: 7.5, team: "Civil" },
+          { name: "Vanderlei Santos", value: 7.2, team: "Civil" },
+          { name: "Luan Neves", value: 8.0, team: "Civil" },
+          { name: "Rafael Pereira", value: 6.8, team: "Civil" },
+          { name: "Rodrigo Soares", value: 7.0, team: "Civil" },
+          { name: "Adelar Fernandes", value: 7.9, team: "Elétrica" },
+          { name: "Izaquiel Bitelo", value: 6.6, team: "Elétrica" },
+          { name: "Cleoton Lima", value: 7.4, team: "Elétrica" },
+          { name: "Anderson Padilha", value: 7.7, team: "Elétrica" },
+          { name: "Raffael da Rosa", value: 7.1, team: "Elétrica" },
+          { name: "Valdir dos Santos", value: 8.1, team: "Refrigeração" },
+          { name: "Walmorcy Neto", value: 7.3, team: "Refrigeração" },
+          { name: "Henrique Pisaroglo", value: 6.9, team: "Refrigeração" },
+          { name: "Eder Evaldt", value: 7.6, team: "Refrigeração" },
+          { name: "Alejandro Brito", value: 7.2, team: "Refrigeração" },
+          { name: "Arthur Cadore", value: 6.7, team: "Refrigeração" },
+          { name: "Mick Santos", value: 8.0, team: "Refrigeração" },
+          { name: "Lucas Schmitzhaus", value: 7.7, team: "Pintura" },
+          { name: "Peterson da Costa", value: 6.8, team: "Pintura" }
         ],
         color: "#2f66ff"
       }
@@ -505,11 +505,11 @@ function sampleData() {
       },
       produtividadePorColaborador: {
         items: [
-          { name: "COLABORADOR UTL 1", value: 7.3, team: "Elétrica" },
-          { name: "COLABORADOR UTL 2", value: 6.8, team: "Elétrica" },
-          { name: "COLABORADOR UTL 3", value: 7.9, team: "Civil" },
-          { name: "COLABORADOR UTL 4", value: 7.4, team: "Civil" },
-          { name: "COLABORADOR UTL 5", value: 6.6, team: "Refrigeração" }
+          { name: "Fabio Dutra", value: 7.9, team: "Utilidades" },
+          { name: "Vitor da Silva", value: 7.2, team: "Utilidades" },
+          { name: "Renato Leske", value: 8.0, team: "Utilidades" },
+          { name: "Wendel Santana", value: 6.7, team: "Utilidades" },
+          { name: "Rodrigo Finger", value: 7.5, team: "Utilidades" }
         ],
         color: "#2f66ff"
       }
@@ -1334,7 +1334,8 @@ function mountUtilidades(host, data, options = {}) {
     Civil: "#2f80ed",
     "Elétrica": "#f2994a",
     "Refrigeração": "#27ae60",
-    Pintura: "#9b51e0"
+    Pintura: "#9b51e0",
+    Utilidades: "#2f80ed"
   };
   const fallbackPalette = ["#2f80ed", "#f2994a", "#27ae60", "#9b51e0", "#eb5757", "#56ccf2"];
   const collaboratorItems = getCollaboratorItems(u?.produtividadePorColaborador ?? {});
