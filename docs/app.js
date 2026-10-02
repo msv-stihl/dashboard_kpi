@@ -939,15 +939,8 @@ async function fetchDashboardData({ force = false } = {}) {
 }
 
 function updateStatusLine() {
-  const fetchDate = store.lastFetchAt instanceof Date ? store.lastFetchAt : null;
-  const payloadDate = store.data?.updatedAt ? new Date(store.data.updatedAt) : null;
-  const primaryDate = fetchDate && !Number.isNaN(fetchDate.getTime()) ? fetchDate : payloadDate;
-  const base = primaryDate && !Number.isNaN(primaryDate.getTime())
-    ? `Último fetch: ${formatDatePtBR(primaryDate)} ${String(primaryDate.toLocaleTimeString("pt-BR")).slice(0, 5)}`
-    : "";
-  const note = store.data?.note ? ` • ${store.data.note}` : "";
-  const err = store.lastError ? ` • ${store.lastError}` : "";
-  setLastUpdatedText(`${base}${note}${err}`.trim());
+  const err = store.lastError ? store.lastError : "";
+  setLastUpdatedText(err.trim());
 }
 
 function mountGeneral(host, data, options = {}) {
