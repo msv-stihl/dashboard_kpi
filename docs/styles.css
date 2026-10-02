@@ -50,7 +50,8 @@ body{
   transform:translateY(-10px);
 }
 .logo-mark{
-  width:min(320px,70vw);
+  width:min(420px,78vw);
+  aspect-ratio:16/9;
   filter:drop-shadow(0 6px 0 rgba(0,0,0,.25));
 }
 .logo-mark svg{width:100%;height:auto;display:block}
@@ -111,7 +112,8 @@ body{
   padding:0 18px 8px 18px;
 }
 .sidebar-logo{
-  width:44px;
+  width:76px;
+  aspect-ratio:16/9;
 }
 .sidebar-logo svg{width:100%;height:auto;display:block}
 .sidebar-logo img{width:100%;height:auto;display:block}

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid meet" aria-labelledby="logoTitle logoDesc" role="img">
+  <title id="logoTitle">Dashboard KPI</title>
+  <desc id="logoDesc">Logo do dashboard com elementos de KPI: barras, rosquinha com gráfico de barras em miniatura e curva de tendência.</desc>
+
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#fafafa"/>
+    </linearGradient>
+    <linearGradient id="diagLeft" x1="0" y1="1" x2="0.32" y2="0">
+      <stop offset="0" stop-color="#e8e8e8" stop-opacity="0"/>
+      <stop offset="1" stop-color="#cfcfcf" stop-opacity="0.85"/>
+    </linearGradient>
+    <linearGradient id="circleBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ededed" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0.2"/>
+    </linearGradient>
+    <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3d3d3d" stop-opacity="0.98"/>
+      <stop offset="1" stop-color="#2a2a2a" stop-opacity="0.98"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="900" fill="url(#bg)"/>
+
+  <g opacity="0.85">
+    <polygon points="0,900 0,620 620,0 690,0 170,900" fill="url(#diagLeft)"/>
+    <polygon points="1180,0 1180,900 880,900 1600,260 1600,0" fill="#e4e4e4" opacity="0.55"/>
+    <polygon points="770,900 1040,900 820,260 610,900" fill="#ececec" opacity="0.6"/>
+    <polygon points="850,0 1100,0 820,820 660,820" fill="#f1f1f1" opacity="0.55"/>
+  </g>
+
+  <g transform="translate(1450,160)">
+    <circle r="120" fill="#ff4500"/>
+  </g>
+
+  <g transform="translate(1050,480)">
+    <circle r="280" fill="url(#circleBg)"/>
+    <circle r="220" fill="#ffffff" opacity="0.85"/>
+
+    <g transform="translate(-75,-95)">
+      <rect x="0" y="60" width="32" height="130" fill="#e1e1e1"/>
+      <rect x="54" y="30" width="32" height="160" fill="#d8d8d8"/>
+      <rect x="108" y="0" width="32" height="190" fill="#cfcfcf"/>
+    </g>
+
+    <g stroke-linecap="butt" stroke-width="56" fill="none">
+      <circle r="170" stroke="#555555" stroke-dasharray="700 1200" stroke-dashoffset="120"/>
+      <circle r="170" stroke="#ff4500" stroke-dasharray="310 1200" stroke-dashoffset="-6"/>
+    </g>
+    <circle r="138" fill="#ffffff" opacity="0.85"/>
+  </g>
+
+  <g transform="translate(540,430)">
+    <rect x="0" y="100" width="70" height="150" rx="4" fill="#bbbbbb"/>
+    <rect x="96" y="40" width="70" height="210" rx="4" fill="#888888"/>
+    <rect x="192" y="-28" width="70" height="278" rx="4" fill="#555555"/>
+    <rect x="288" y="-120" width="70" height="370" rx="4" fill="#ff4500"/>
+    <rect x="292" y="-136" width="62" height="12" rx="4" fill="#222222"/>
+  </g>
+
+  <g transform="translate(1040,480)">
+    <path d="M 0 -250 L 0 320" stroke="#ffffff" stroke-opacity="0.9" stroke-width="2"/>
+    <path d="M -270 0 L 270 0" stroke="#ffffff" stroke-opacity="0.9" stroke-width="2"/>
+  </g>
+
+  <g transform="translate(970,740)">
+    <path d="M0 250 C 120 250, 160 200, 230 160 C 300 120, 340 70, 410 40 C 470 15, 510 -20, 580 -45 C 640 -68, 680 -110, 760 -125"
+          fill="none" stroke="#3d3d3d" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M0 250 C 120 250, 160 200, 230 160 C 300 120, 340 70, 410 40 C 470 15, 510 -20, 580 -45 C 640 -68, 680 -110, 760 -125 L 760 260 L 0 260 Z"
+          fill="url(#area)" opacity="0.92"/>
+    <g fill="#ffffff" stroke="#3d3d3d" stroke-width="4">
+      <circle cx="290" cy="112" r="14"/>
+      <circle cx="470" cy="-5" r="14"/>
+      <circle cx="620" cy="-58" r="14"/>
+    </g>
+  </g>
+</svg>
