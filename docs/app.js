@@ -69,7 +69,8 @@ function getCollaboratorItems(metric, { excludeSpci = true } = {}) {
       .map((item) => ({
         name: String(item?.name ?? "").trim(),
         value: Number(item?.value ?? 0),
-        team: normalizeTeamName(item?.team ?? "")
+        team: normalizeTeamName(item?.team ?? ""),
+        os: String(item?.os ?? "").trim()
       }))
       .filter((item) => item.name && Number.isFinite(item.value) && (!excludeSpci || item.team !== "SPCI"));
   }
@@ -77,12 +78,14 @@ function getCollaboratorItems(metric, { excludeSpci = true } = {}) {
   const labels = Array.isArray(metric?.labels) ? metric.labels : [];
   const values = Array.isArray(metric?.values) ? metric.values : [];
   const teams = Array.isArray(metric?.teams) ? metric.teams : [];
+  const oss = Array.isArray(metric?.os) ? metric.os : [];
 
   return labels
     .map((name, idx) => ({
       name: String(name ?? "").trim(),
       value: Number(values[idx] ?? 0),
-      team: normalizeTeamName(teams[idx] ?? "")
+      team: normalizeTeamName(teams[idx] ?? ""),
+      os: String(oss[idx] ?? "").trim()
     }))
     .filter((item) => item.name && Number.isFinite(item.value) && (!excludeSpci || item.team !== "SPCI"));
 }
@@ -93,6 +96,27 @@ function compareToTargetText(result, target) {
   if (!(tgt > 0)) return "Meta não informada";
   if (res >= tgt) return "Meta atingida";
   return `${formatNumberPtBR((res / tgt) * 100, { digits: 0 })}% da meta`;
+}
+
+function buildKpiClasses(isOnTarget) {
+  return `card mini-kpi${isOnTarget ? " is-target-ok" : " is-target-bad"}`;
+}
+
+function renderKpi(label, valueText, { target, targetLabel, isOnTarget, direction = "gte" }) {
+  return el("div", { class: buildKpiClasses(Boolean(isOnTarget)) }, [
+    el("div", { class: "card-title", text: label }),
+    el("div", { class: "mini-value", text: valueText }),
+    el("div", { class: "mini-target", text: targetLabel ? `Meta: ${targetLabel}` : "" })
+  ]);
+}
+
+function evaluateKpi(value, { target, direction = "gte" }) {
+  const v = Number(value ?? 0);
+  const t = Number(target ?? 0);
+  if (direction === "lte") return v <= t;
+  if (direction === "lt") return v < t;
+  if (direction === "gt") return v > t;
+  return v >= t;
 }
 
 const CRONOGRAMA_LEVEL_CONFIG = {
@@ -360,138 +384,194 @@ function renderZusChart(canvasSelector, storeKey, metric, { defaultColor = "#333
 }
 
 function sampleData() {
+  const zusLabels = [
+    "ZUs","01/09","02/09","03/09","04/09","05/09","06/09","07/09","08/09","09/09",
+    "10/09","11/09","12/09","13/09","14/09","15/09","16/09","17/09","18/09","19/09",
+    "20/09","21/09","22/09","23/09","24/09","25/09","26/09","27/09","28/09","29/09",
+    "30/09","01/10"
+  ];
+
   return {
     updatedAt: new Date().toISOString(),
-    note: "Configure o endpoint para ver dados reais.",
+    note: "Visualização com valores fixos (branch view).",
     general: {
       accidents: [
-        { label: "FAC", value: 0, lastRecord: "2022-12-31" },
-        { label: "LSI", value: 0, lastRecord: "2022-12-31" },
-        { label: "UTL", value: 0, lastRecord: "2022-12-31" },
-        { label: "SPCI", value: 0, lastRecord: "2022-12-31" }
+        { label: "FAC", value: 0, lastRecord: "2026-09-01" },
+        { label: "LSI", value: 0, lastRecord: "2026-09-01" },
+        { label: "UTL", value: 0, lastRecord: "2026-09-01" },
+        { label: "SPCI", value: 0, lastRecord: "2026-09-01" }
       ],
       customerSatisfaction: {
-        labels: ["jan", "fev", "mar"],
-        bars: [87, 83, 72],
-        line: [87, 83, 72]
+        labels: ["abr","mai","jun","jul","ago","set"],
+        bars: [90,91,89,92,90,91],
+        line: [90,91,89,92,90,91]
       },
       sevenS: {
-        labels: ["jan", "fev", "mar"],
+        labels: ["abr","mai","jun","jul","ago","set"],
         series: [
-          { name: "Stihl", data: [87, 87, 87], color: "#ff4d00" },
-          { name: "Manserv", data: [80, 80, 80], color: "#2e2e2e" }
+          { name: "Stihl", data: [90,90,90,90,90,90], color: "#ff4d00" },
+          { name: "Manserv", data: [85,86,85,87,86,86], color: "#2e2e2e" }
         ]
       }
     },
     facilities: {
-      tmaDays: 9.2,
-      productivityPct: 30,
-      reworkPct: 0.5,
-      servicoExterno: 12,
-      preventivas: 94,
+      tmaDays: 5.3,
+      productivityPct: 77,
+      reworkPct: 0.2,
+      servicoExterno: 93.6,
+      preventivas: 100,
       atendimentoZUS: {
-        labels: ["00:00", "00:30", "01:00", "01:30", "02:00"],
+        labels: zusLabels,
         series: [
-          { name: "Civil", color: "#2f80ed", data: [0.6, 1.2, 0.8, 1.4, 1.6] },
-          { name: "Elétrica", color: "#f2994a", data: [0.4, 1.0, 0.9, 1.1, 1.3] },
-          { name: "Refrigeração", color: "#27ae60", data: [0.3, 0.9, 0.6, 0.8, 1.1] }
+          { name: "Civil", color: "#2f80ed", data: [
+            0.9, 0.9, 0.8, 0.5, 0.4, 0.0, -0.1, -0.1, 0.8, 0.6,
+            1.0, 0.8, -0.1, -0.1, 0.0, 1.0, 1.4, 1.6, 0.9, 0.0,
+           -0.1, -0.1, 0.6, 0.8, 0.4, 0.3, -0.1, 0.0, 0.6, 0.2,
+            0.1, 0.0
+          ]},
+          { name: "Elétrica", color: "#f2994a", data: [
+            0.2, 0.2, 0.5, 0.8, 0.9, 0.1, -0.1, 0.0, 0.9, 0.7,
+            0.6, 1.1, 0.2, -0.1, 0.0, 0.5, 0.5, 1.2, 0.7, 0.4,
+            0.2, 0.1, 0.6, 0.6, 0.3, 0.2, 0.0, 0.1, 0.7, 1.1,
+            0.1, 0.0
+          ]},
+          { name: "Refrigeração", color: "#27ae60", data: [
+            0.0, 0.0, 0.4, 0.1, 0.7, 0.0, 0.0, 0.0, -0.1, 1.4,
+            0.8, 1.2, 0.9, 0.1, 0.0, 0.1, 1.3, 1.1, 1.1, 0.9,
+           -0.1, 0.0, 0.6, 0.9, 0.2, 0.1, 0.0, 0.0, 0.0, 0.0,
+            1.2, 0.0
+          ]}
         ],
         limit: 2.0
       },
       prioridadeAlta: {
         labels: ["Civil", "Elétrica", "Refrigeração", "Pintura"],
-        values: [20, 28, 14, 2],
-        colors: ["#2f80ed", "#f2994a", "#27ae60", "#ff4d00"]
+        values: [1, 1, 0, 0],
+        colors: ["#eb5757", "#eb5757", "#2f80ed", "#27ae60"]
+      },
+      portasRapidasPendentes: {
+        labels: ["Portas Rápidas", "Alpinistas"],
+        values: [7, 2],
+        colors: ["#eb5757", "#eb5757"]
       },
       avaliacoes: {
-        labels: ["Alta", "Média", "Baixa", "Parada"],
-        values: [42, 25, 18, 15],
-        colors: ["#eb5757", "#f2c94c", "#2f80ed", "#27ae60"]
+        labels: ["Civil", "Elétrica", "Refrigeração"],
+        values: [28, 65, 7],
+        colors: ["#eb5757", "#2f80ed", "#27ae60"]
       },
       produtividadePorColaborador: {
         items: [
-          { name: "ANDREY", value: 5.2, team: "Civil" },
-          { name: "PIERRE", value: 8.0, team: "Elétrica" },
-          { name: "RODRIGO", value: 1.0, team: "Pintura" },
-          { name: "CRISTIANO", value: 8.5, team: "Refrigeração" },
-          { name: "RAFAEL", value: 6.2, team: "Civil" },
-          { name: "ALEXANDRE", value: 5.0, team: "Elétrica" }
+          { name: "COLABORADOR FAC 01", value: 7.2, team: "Civil" },
+          { name: "COLABORADOR FAC 02", value: 7.8, team: "Civil" },
+          { name: "COLABORADOR FAC 03", value: 6.9, team: "Civil" },
+          { name: "COLABORADOR FAC 04", value: 8.0, team: "Civil" },
+          { name: "COLABORADOR FAC 05", value: 7.5, team: "Civil" },
+          { name: "COLABORADOR FAC 06", value: 6.7, team: "Civil" },
+          { name: "COLABORADOR FAC 07", value: 7.4, team: "Elétrica" },
+          { name: "COLABORADOR FAC 08", value: 7.0, team: "Elétrica" },
+          { name: "COLABORADOR FAC 09", value: 7.9, team: "Elétrica" },
+          { name: "COLABORADOR FAC 10", value: 6.6, team: "Elétrica" },
+          { name: "COLABORADOR FAC 11", value: 8.1, team: "Elétrica" },
+          { name: "COLABORADOR FAC 12", value: 7.3, team: "Elétrica" },
+          { name: "COLABORADOR FAC 13", value: 6.8, team: "Refrigeração" },
+          { name: "COLABORADOR FAC 14", value: 7.7, team: "Refrigeração" },
+          { name: "COLABORADOR FAC 15", value: 7.1, team: "Refrigeração" },
+          { name: "COLABORADOR FAC 16", value: 7.6, team: "Refrigeração" },
+          { name: "COLABORADOR FAC 17", value: 6.7, team: "Refrigeração" },
+          { name: "COLABORADOR FAC 18", value: 8.0, team: "Pintura" },
+          { name: "COLABORADOR FAC 19", value: 7.0, team: "Pintura" },
+          { name: "COLABORADOR FAC 20", value: 6.9, team: "Pintura" }
         ],
         color: "#2f66ff"
       }
     },
     utilidades: {
-      tmaDays: 7.6,
-      productivityPct: 84,
-      avaliacoes: 18,
-      reworkPct: 1.1,
-      preventivas: 93,
+      tmaDays: 22.1,
+      productivityPct: 62,
+      avaliacoes: 7,
+      reworkPct: 0.0,
+      preventivas: 83.1,
       atendimentoZUS: {
-        labels: ["01/06", "02/06", "03/06", "04/06", "05/06"],
+        labels: zusLabels,
         series: [
-          { name: "Utilidades", color: "#2f80ed", data: [1.2, 1.1, 1.4, 1.0, 0.9] }
+          { name: "Utilidades", color: "#2f80ed", data: [
+            0.0, 0.0, 0.0, -0.1, 0.0, -0.3, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.2, 0.1, 0.0, 0.0, 0.2, 0.1, 0.0,
+            0.4, 0.0
+          ]}
         ],
         limit: 2
       },
       produtividadePorColaborador: {
         items: [
-          { name: "ANDRE", value: 7.2, team: "Elétrica" },
-          { name: "CARLOS", value: 6.8, team: "Elétrica" },
-          { name: "FERNANDA", value: 8.4, team: "Civil" },
-          { name: "JOAO", value: 5.9, team: "Refrigeração" },
-          { name: "MATEUS", value: 7.7, team: "Civil" },
-          { name: "PABLO", value: 6.3, team: "Refrigeração" }
+          { name: "COLABORADOR UTL 1", value: 7.3, team: "Elétrica" },
+          { name: "COLABORADOR UTL 2", value: 6.8, team: "Elétrica" },
+          { name: "COLABORADOR UTL 3", value: 7.9, team: "Civil" },
+          { name: "COLABORADOR UTL 4", value: 7.4, team: "Civil" },
+          { name: "COLABORADOR UTL 5", value: 6.6, team: "Refrigeração" }
         ],
         color: "#2f66ff"
       }
     },
     spci: {
-      tmaDays: 6.4,
-      productivityPct: 76,
-      avaliacoes: 12,
-      reworkPct: 0.9,
-      preventivas: 91,
+      tmaDays: 4.2,
+      productivityPct: 78,
+      avaliacoes: 5,
+      reworkPct: 0.0,
+      preventivas: 100,
       atendimentoZUS: {
-        labels: ["01/06", "02/06", "03/06", "04/06", "05/06"],
+        labels: zusLabels,
         series: [
-          { name: "SPCI", color: "#2e2e2e", data: [0.7, 0.8, 1.0, 0.9, 0.6] }
+          { name: "SPCI", color: "#2e2e2e", data: [
+            0, 1.2, 1.3, 0.3, 0.2, 0.1, 0.0, 0.0, 0.0, 0.9,
+            0.6, 0.1, 0.0, 0.0, 0.0, 0.0, 0.6, 0.1, 0.0, 0.0,
+            0.0, 0.0, 1.2, 1.3, 0.5, 0.3, 0.0, 0.0, 0.0, 0.0,
+            0.3, 0.1
+          ]}
         ],
         limit: 2
       },
       produtividadePorColaborador: {
         items: [
-          { name: "ANA", value: 6.6, team: "SPCI" },
-          { name: "BRUNO", value: 7.1, team: "SPCI" },
-          { name: "DANILO", value: 5.8, team: "SPCI" },
-          { name: "GUSTAVO", value: 8.2, team: "SPCI" },
-          { name: "MARIA", value: 6.9, team: "SPCI" }
+          { name: "Rodrigo Ascal", value: 8.1, team: "SPCI", os: "56403" },
+          { name: "Gabriel Bender", value: 7.9, team: "SPCI", os: "58653" },
+          { name: "Roberto Prestes", value: 7.6, team: "SPCI", os: "33967" },
+          { name: "Igor Martins", value: 7.2, team: "SPCI", os: "58871" },
+          { name: "Luis Carlos", value: 6.6, team: "SPCI", os: "64855" }
         ],
+        osFilters: ["56403", "58653", "33967", "58871", "64855"],
         color: "#2f66ff"
       }
     },
     lsi: {
       atendimentoZUS: {
-        labels: ["01/06", "02/06", "03/06", "04/06", "05/06"],
+        labels: zusLabels,
         series: [
-          { name: "Civil", color: "#2f80ed", data: [0.8, 1.1, 0.9, 1.3, 1.2] },
-          { name: "Elétrica", color: "#f2994a", data: [0.7, 0.9, 1.0, 1.1, 1.0] },
-          { name: "Refrigeração", color: "#27ae60", data: [0.6, 0.8, 0.7, 0.9, 0.8] }
+          { name: "Limpeza Conv", color: "#2f80ed", data: [
+            0.1, 0.6, 1.8, 0.1, 0.0, 0.0, 0.0, 0.0, 1.0, 0.7,
+            0.0, 0.8, 0.0, 0.0, 0.5, 0.0, 1.3, 0.0, 0.8, 0.0,
+            0.0, 0.0, 1.3, 0.7, 0.6, 1.1, 0.3, 0.0, 0.0, 0.9,
+            0.1, 0.0
+          ]},
+          { name: "Limpeza Técnica", color: "#f2994a", data: new Array(zusLabels.length).fill(0) },
+          { name: "Jardinagem", color: "#27ae60", data: new Array(zusLabels.length).fill(0) }
         ],
         limit: 2
       },
       cronogramas: [
-        { label: "Limpeza de Salas", result: 92, target: 95 },
-        { label: "Limpeza de Banheiros", result: 89, target: 92 },
-        { label: "Recolhimento Resíduos", result: 94, target: 96 },
-        { label: "Limpeza de Piso", result: 90, target: 94 },
-        { label: "Limpeza Técnica", result: 85, target: 90 },
-        { label: "Jardinagem", result: 96, target: 94 }
+        { label: "Limpeza de Salas", result: 97.2, target: 90 },
+        { label: "Limpeza de Banheiros", result: 99.4, target: 100 },
+        { label: "Recolhimento Resíduos", result: 97.8, target: 100 },
+        { label: "Limpeza de Piso", result: 100, target: 100 },
+        { label: "Limpeza Técnica", result: 93.9, target: 90 },
+        { label: "Jardinagem", result: 93.7, target: 90 }
       ],
       eficacia: [
-        { label: "Jardinagem", evaluations: 18, result: 94 },
-        { label: "Limpeza Técnica", evaluations: 21, result: 89 },
-        { label: "Limpeza Convencional", evaluations: 26, result: 91 },
-        { label: "Limpeza de Piso", evaluations: 14, result: 87 }
+        { label: "Jardinagem", evaluations: 68, result: 95.1 },
+        { label: "Limpeza Técnica", evaluations: 74, result: 85.1 },
+        { label: "Limpeza Convencional", evaluations: 68, result: 94.0 },
+        { label: "Limpeza de Piso", evaluations: 75, result: 89.3 }
       ]
     }
   };
@@ -798,8 +878,9 @@ async function fetchDashboardData({ force = false } = {}) {
   store.loading = true;
   setDashboardLoading(true);
   try {
+    const useMock = Boolean(cfg.dashboardMockOnly);
     const endpoint = String(cfg.dataEndpoint || "").trim();
-    if (!endpoint) {
+    if (useMock || !endpoint) {
       store.data = sampleData();
       store.lastError = "";
       store.lastFetchAt = new Date();
@@ -972,23 +1053,44 @@ function mountFacilities(host, data, options = {}) {
     Pintura: "#9b51e0"
   };
   const kpis = el("div", { class: "small-kpis" });
-  const mkpi = (label, valueText) =>
-    el("div", { class: "card mini-kpi" }, [
-      el("div", { class: "card-title", text: label }),
-      el("div", { class: "mini-value", text: valueText })
-    ]);
   const formatMetricValue = (value) => {
     const n = Number(value ?? 0);
     const digits = Math.abs(n % 1) > 0.001 ? 1 : 0;
     return formatNumberPtBR(n, { digits });
   };
 
+  const tma = Number(f?.tmaDays ?? 0);
+  const prod = Number(f?.productivityPct ?? 0);
+  const rework = Number(f?.reworkPct ?? 0);
+  const ext = Number(f?.servicoExterno ?? 0);
+  const prev = Number(f?.preventivas ?? 0);
+
   kpis.append(
-    mkpi("TMA em dias", formatNumberPtBR(f?.tmaDays ?? 0, { digits: 1 })),
-    mkpi("Produtividade", `${formatNumberPtBR(f?.productivityPct ?? 0)}%`),
-    mkpi("Retrabalho", `${formatNumberPtBR(f?.reworkPct ?? 0, { digits: 1 })}%`),
-    mkpi("Serviços Externos", `${formatMetricValue(f?.servicoExterno ?? 0)}%`),
-    mkpi("Preventivas", `${formatMetricValue(f?.preventivas ?? 0)}%`)
+    renderKpi("TMA em dias", `${formatNumberPtBR(tma, { digits: 1 })} dias`, {
+      target: 10,
+      targetLabel: "≤ 10 dias",
+      isOnTarget: evaluateKpi(tma, { target: 10, direction: "lte" })
+    }),
+    renderKpi("Produtividade", `${formatNumberPtBR(prod)}%`, {
+      target: 70,
+      targetLabel: "≥ 70%",
+      isOnTarget: evaluateKpi(prod, { target: 70, direction: "gte" })
+    }),
+    renderKpi("Retrabalho", `${formatNumberPtBR(rework, { digits: 1 })}%`, {
+      target: 1,
+      targetLabel: "< 1%",
+      isOnTarget: evaluateKpi(rework, { target: 1, direction: "lt" })
+    }),
+    renderKpi("Serviços Externos", `${formatMetricValue(ext)}%`, {
+      target: 90,
+      targetLabel: "≥ 90%",
+      isOnTarget: evaluateKpi(ext, { target: 90, direction: "gte" })
+    }),
+    renderKpi("Preventivas", `${formatMetricValue(prev)}%`, {
+      target: 100,
+      targetLabel: "= 100%",
+      isOnTarget: evaluateKpi(prev, { target: 100, direction: "gte" })
+    })
   );
 
   const layout = el("div", { class: "stack-lg" });
@@ -1244,23 +1346,44 @@ function mountUtilidades(host, data, options = {}) {
   });
 
   const kpis = el("div", { class: "small-kpis" });
-  const mkpi = (label, valueText) =>
-    el("div", { class: "card mini-kpi" }, [
-      el("div", { class: "card-title", text: label }),
-      el("div", { class: "mini-value", text: valueText })
-    ]);
   const formatMetricValue = (value) => {
     const n = Number(value ?? 0);
     const digits = Math.abs(n % 1) > 0.001 ? 1 : 0;
     return formatNumberPtBR(n, { digits });
   };
 
+  const tma = Number(u?.tmaDays ?? 0);
+  const prod = Number(u?.productivityPct ?? 0);
+  const rework = Number(u?.reworkPct ?? 0);
+  const prev = Number(u?.preventivas ?? 0);
+  const aval = Number(u?.avaliacoes ?? 0);
+
   kpis.append(
-    mkpi("TMA em dias", formatNumberPtBR(u?.tmaDays ?? 0, { digits: 1 })),
-    mkpi("Produtividade", `${formatNumberPtBR(u?.productivityPct ?? 0)}%`),
-    mkpi("Avaliações", formatMetricValue(u?.avaliacoes ?? 0)),
-    mkpi("Retrabalho", `${formatNumberPtBR(u?.reworkPct ?? 0, { digits: 1 })}%`),
-    mkpi("Preventivas", `${formatMetricValue(u?.preventivas ?? 0)}%`)
+    renderKpi("TMA em dias", `${formatNumberPtBR(tma, { digits: 1 })} dias`, {
+      target: 10,
+      targetLabel: "≤ 10 dias",
+      isOnTarget: evaluateKpi(tma, { target: 10, direction: "lte" })
+    }),
+    renderKpi("Produtividade", `${formatNumberPtBR(prod)}%`, {
+      target: 70,
+      targetLabel: "≥ 70%",
+      isOnTarget: evaluateKpi(prod, { target: 70, direction: "gte" })
+    }),
+    renderKpi("Avaliações", formatMetricValue(aval), {
+      target: null,
+      targetLabel: "—",
+      isOnTarget: true
+    }),
+    renderKpi("Retrabalho", `${formatNumberPtBR(rework, { digits: 1 })}%`, {
+      target: 1,
+      targetLabel: "< 1%",
+      isOnTarget: evaluateKpi(rework, { target: 1, direction: "lt" })
+    }),
+    renderKpi("Preventivas", `${formatMetricValue(prev)}%`, {
+      target: 70,
+      targetLabel: "≥ 70%",
+      isOnTarget: evaluateKpi(prev, { target: 70, direction: "gte" })
+    })
   );
 
   const layout = el("div", { class: "stack-lg" });
@@ -1402,23 +1525,44 @@ function mountSPCI(host, data, options = {}) {
   });
 
   const kpis = el("div", { class: "small-kpis" });
-  const mkpi = (label, valueText) =>
-    el("div", { class: "card mini-kpi" }, [
-      el("div", { class: "card-title", text: label }),
-      el("div", { class: "mini-value", text: valueText })
-    ]);
   const formatMetricValue = (value) => {
     const n = Number(value ?? 0);
     const digits = Math.abs(n % 1) > 0.001 ? 1 : 0;
     return formatNumberPtBR(n, { digits });
   };
 
+  const tma = Number(u?.tmaDays ?? 0);
+  const prod = Number(u?.productivityPct ?? 0);
+  const rework = Number(u?.reworkPct ?? 0);
+  const prev = Number(u?.preventivas ?? 0);
+  const aval = Number(u?.avaliacoes ?? 0);
+
   kpis.append(
-    mkpi("TMA em dias", formatNumberPtBR(u?.tmaDays ?? 0, { digits: 1 })),
-    mkpi("Produtividade", `${formatNumberPtBR(u?.productivityPct ?? 0)}%`),
-    mkpi("Avaliações", formatMetricValue(u?.avaliacoes ?? 0)),
-    mkpi("Retrabalho", `${formatNumberPtBR(u?.reworkPct ?? 0, { digits: 1 })}%`),
-    mkpi("Preventivas", `${formatMetricValue(u?.preventivas ?? 0)}%`)
+    renderKpi("TMA em dias", `${formatNumberPtBR(tma, { digits: 1 })} dias`, {
+      target: 10,
+      targetLabel: "≤ 10 dias",
+      isOnTarget: evaluateKpi(tma, { target: 10, direction: "lte" })
+    }),
+    renderKpi("Produtividade", `${formatNumberPtBR(prod)}%`, {
+      target: 70,
+      targetLabel: "≥ 70%",
+      isOnTarget: evaluateKpi(prod, { target: 70, direction: "gte" })
+    }),
+    renderKpi("Avaliações", formatMetricValue(aval), {
+      target: null,
+      targetLabel: "—",
+      isOnTarget: true
+    }),
+    renderKpi("Retrabalho", `${formatNumberPtBR(rework, { digits: 1 })}%`, {
+      target: 1,
+      targetLabel: "< 1%",
+      isOnTarget: evaluateKpi(rework, { target: 1, direction: "lt" })
+    }),
+    renderKpi("Preventivas", `${formatMetricValue(prev)}%`, {
+      target: 100,
+      targetLabel: "= 100%",
+      isOnTarget: evaluateKpi(prev, { target: 100, direction: "gte" })
+    })
   );
 
   const layout = el("div", { class: "stack-lg" });
@@ -1449,10 +1593,13 @@ function mountSPCI(host, data, options = {}) {
 
   const pc = u?.produtividadePorColaborador ?? {};
   const pcColor = pc?.color ?? "#2f66ff";
-  const filterOptions = [{ label: "Todos", value: "all" }].concat(uniqueTeams.map((team) => ({ label: team, value: team })));
+  const hasOsFilters = Array.isArray(pc?.osFilters) && pc.osFilters.length > 0;
+  const filterOptions = hasOsFilters
+    ? [{ label: "Todos", value: "all" }].concat(pc.osFilters.map((os) => ({ label: String(os), value: String(os) })))
+    : [{ label: "Todos", value: "all" }].concat(uniqueTeams.map((team) => ({ label: team, value: team })));
   let activeFilter = "all";
 
-  filterBar.hidden = uniqueTeams.length < 2;
+  filterBar.hidden = hasOsFilters ? false : uniqueTeams.length < 2;
 
   const ctx2 = qs("#chartSpciProdColab")?.getContext("2d");
   if (ctx2) {
@@ -1502,7 +1649,11 @@ function mountSPCI(host, data, options = {}) {
     const renderTeam = (teamName) => {
       activeFilter = teamName;
       const filtered = collaboratorItems
-        .filter((item) => activeFilter === "all" || item.team === activeFilter)
+        .filter((item) => {
+          if (activeFilter === "all") return true;
+          if (hasOsFilters) return item.os === activeFilter;
+          return item.team === activeFilter;
+        })
         .sort((a, b) => b.value - a.value);
 
       chart.data.labels = filtered.map((item) => item.name);

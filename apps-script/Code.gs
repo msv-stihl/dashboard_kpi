@@ -546,6 +546,7 @@ function runFetchAndUpdate() {
     if (written > 0) {
       PropertiesService.getScriptProperties().setProperty("LAST_UPDATE_ISO", new Date().toISOString());
       PropertiesService.getScriptProperties().deleteProperty("LAST_ERROR");
+      try { invalidatePayloadCache_(); } catch {}
     }
     return { ok: true, records: records.length, written };
   } catch (e) {
@@ -690,6 +691,7 @@ function runFetchAndUpdateDebug() {
     if (written > 0) {
       PropertiesService.getScriptProperties().setProperty("LAST_UPDATE_ISO", new Date().toISOString());
       PropertiesService.getScriptProperties().deleteProperty("LAST_ERROR");
+      try { invalidatePayloadCache_(); } catch {}
     }
     return {
       ok: true,
@@ -914,6 +916,7 @@ function publishStagingToMain_(stagingName, deadlineMs) {
     PropertiesService.getScriptProperties().deleteProperty("SYNC_INIT");
     PropertiesService.getScriptProperties().deleteProperty("SYNC_TOTAL");
     PropertiesService.getScriptProperties().deleteProperty("SYNC_STATE");
+    try { invalidatePayloadCache_(); } catch {}
   } else {
     PropertiesService.getScriptProperties().setProperty("SYNC_STATE", "publishing");
   }
@@ -945,6 +948,203 @@ function getRangeA1_(ss, sheetName, a1) {
   const sh = ss.getSheetByName(sheetName);
   if (!sh) return null;
   return sh.getRange(String(a1)).getValues();
+}
+
+const PAYLOAD_CACHE_TTL_SEC_ = 600;
+const PAYLOAD_CACHE_MAX_BYTES_ = 90 * 1024;
+const PROPS_FALLBACK_PREFIX_ = "PAYLOAD_CACHE:";
+
+function colLetterToIndex_(letter) {
+  const s = String(letter || "").toUpperCase();
+  let n = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i) - 64;
+    if (c < 1 || c > 26) break;
+    n = n * 26 + c;
+  }
+  return n;
+}
+
+function parseA1_(a1) {
+  const m = /^\s*([A-Z]+)?(\d+)?(?::([A-Z]+)?(\d+)?)?\s*$/i.exec(String(a1 || ""));
+  if (!m) return null;
+  const c1 = m[1] ? colLetterToIndex_(m[1]) : 1;
+  const r1 = m[2] ? parseInt(m[2], 10) : 1;
+  const c2 = m[3] ? colLetterToIndex_(m[3]) : c1;
+  const r2 = m[4] ? parseInt(m[4], 10) : r1;
+  return { r1, c1, r2, c2 };
+}
+
+function newDashBatch_(ss) {
+  const sh = ss.getSheetByName("dash");
+  if (!sh) return { values: [], getA1: () => null, getRange: () => [], rowSeries: () => [] };
+  const lr = sh.getLastRow();
+  const lc = sh.getLastColumn();
+  const rows = Math.max(lr, 1);
+  const cols = Math.max(lc, 1);
+  const values = rows > 0 && cols > 0 ? sh.getRange(1, 1, rows, cols).getValues() : [];
+
+  const getCell = (r, c) => {
+    if (r < 1 || c < 1) return null;
+    const rr = values[r - 1];
+    if (!rr || rr.length < c) return null;
+    return rr[c - 1];
+  };
+  const getA1 = (a1) => {
+    const p = parseA1_(a1);
+    if (!p) return null;
+    return getCell(p.r1, p.c1);
+  };
+  const getRange = (a1) => {
+    const p = parseA1_(a1);
+    if (!p) return [];
+    const out = [];
+    for (let r = p.r1; r <= p.r2; r++) {
+      const row = [];
+      for (let c = p.c1; c <= p.c2; c++) row.push(getCell(r, c));
+      out.push(row);
+    }
+    return out;
+  };
+  const rowSeries = (rowNumber) => {
+    const r = values[rowNumber - 1];
+    if (!r || r.length < 2) return [];
+    const out = [];
+    for (let i = 1; i < r.length; i++) {
+      const v = r[i];
+      if (v == null || v === "") break;
+      out.push(v);
+    }
+    return out;
+  };
+  return { values, getA1, getRange, rowSeries };
+}
+
+function getPayloadCache_(key) {
+  try {
+    const cache = CacheService.getScriptCache();
+    const v = cache.get(key);
+    if (v != null) return JSON.parse(v);
+  } catch {}
+  try {
+    const props = PropertiesService.getScriptProperties();
+    const raw = props.getProperty(PROPS_FALLBACK_PREFIX_ + key);
+    if (raw) {
+      try {
+        const obj = JSON.parse(raw);
+        if (obj && typeof obj._ts === "number" && Date.now() - obj._ts < PAYLOAD_CACHE_TTL_SEC_ * 1000) {
+          return obj.data;
+        }
+      } catch {}
+      try { props.deleteProperty(PROPS_FALLBACK_PREFIX_ + key); } catch {}
+    }
+  } catch {}
+  return null;
+}
+
+function putPayloadCache_(key, data) {
+  try {
+    const json = JSON.stringify(data);
+    try {
+      const cache = CacheService.getScriptCache();
+      if (json.length <= PAYLOAD_CACHE_MAX_BYTES_) cache.put(key, json, PAYLOAD_CACHE_TTL_SEC_);
+    } catch {}
+    try {
+      const props = PropertiesService.getScriptProperties();
+      const envelope = JSON.stringify({ _ts: Date.now(), data });
+      if (envelope.length <= PAYLOAD_CACHE_MAX_BYTES_ * 1.5) {
+        props.setProperty(PROPS_FALLBACK_PREFIX_ + key, envelope);
+      }
+    } catch {}
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function invalidatePayloadCache_(optionalKeyPrefix) {
+  try {
+    const cache = CacheService.getScriptCache();
+    const props = PropertiesService.getScriptProperties();
+    if (optionalKeyPrefix) {
+      const all = props.getProperties();
+      Object.keys(all).forEach((k) => {
+        if (k.indexOf(PROPS_FALLBACK_PREFIX_ + optionalKeyPrefix) === 0) {
+          try { props.deleteProperty(k); } catch {}
+        }
+      });
+      return;
+    }
+    ["dashboard", "prog_sem", "lsi_rotinas", "cliente_cronograma", "cliente_os"].forEach((base) => {
+      try { cache.remove(base); } catch {}
+    });
+    const all = props.getProperties();
+    Object.keys(all).forEach((k) => {
+      if (k.indexOf(PROPS_FALLBACK_PREFIX_) === 0) {
+        try { props.deleteProperty(k); } catch {}
+      }
+    });
+  } catch {}
+}
+
+function getOrBuildPayload_(key, builderFn, { force = false } = {}) {
+  const cacheKey = String(key || "payload");
+  if (!force) {
+    const cached = getPayloadCache_(cacheKey);
+    if (cached != null) {
+      try { cached._fromCache = true; } catch {}
+      return cached;
+    }
+  }
+  const built = builderFn();
+  putPayloadCache_(cacheKey, built);
+  try {
+    if (built && typeof built === "object") built._fromCache = false;
+  } catch {}
+  return built;
+}
+
+function warmupPayloadCache_() {
+  const out = {};
+  const getMondayLocal_ = (date) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    const jsDay = d.getDay();
+    const diff = jsDay === 0 ? -6 : 1 - jsDay;
+    d.setDate(d.getDate() + diff);
+    return d;
+  };
+  try {
+    const dashboard = buildDashboardPayload_({ forceCache: true });
+    out.dashboard = true;
+    putPayloadCache_("dashboard", dashboard);
+  } catch (e) { out.dashboardError = String(e && e.message ? e.message : e); }
+  try {
+    const today = new Date();
+    const iso = today.toISOString().slice(0, 10);
+    const lsi = buildLsiRotinasPayload_({ parameter: { date: iso }, forceCache: true });
+    out.lsi_rotinas = true;
+    putPayloadCache_("lsi_rotinas:" + iso, lsi);
+  } catch (e) { out.lsiError = String(e && e.message ? e.message : e); }
+  try {
+    const mon = getMondayLocal_(new Date());
+    const prog = buildProgSemPayload_({ parameter: { weekStart: mon.toISOString().slice(0, 10) }, forceCache: true });
+    out.prog_sem = true;
+    putPayloadCache_("prog_sem:" + mon.toISOString().slice(0, 10), prog);
+  } catch (e) { out.progError = String(e && e.message ? e.message : e); }
+  out.updatedAt = new Date().toISOString();
+  return out;
+}
+
+function createDashboardWarmupTrigger_() {
+  const handlers = ScriptApp.getProjectTriggers().filter((t) => t.getHandlerFunction() === "warmupPayloadCache_");
+  for (const t of handlers) try { ScriptApp.deleteTrigger(t); } catch {}
+  try {
+    ScriptApp.newTrigger("warmupPayloadCache_").timeBased().everyMinutes(10).create();
+    return "ok";
+  } catch (e) {
+    return "error: " + String(e && e.message ? e.message : e);
+  }
 }
 
 function normalizePercent_(value) {
@@ -983,9 +1183,11 @@ function isSpciLabel_(value) {
   return normalizeTeamName_(value) === "SPCI";
 }
 
-function buildLsiPayload_(ss) {
-  const zu = getRangeA1_(ss, "dash", "A102:AF105");
+function buildLsiPayload_(dashBatch) {
+  const batch = dashBatch || { getA1: () => null, getRange: () => [] };
+  const zu = batch.getRange("A102:AF105");
   const zuParsed = parseSeriesMatrix_(zu || []);
+  const g = (a1) => batch.getA1(a1);
 
   return {
     atendimentoZUS: {
@@ -998,90 +1200,73 @@ function buildLsiPayload_(ss) {
       limit: zuParsed.limit
     },
     cronogramas: [
-      { label: "Limpeza de Salas", result: normalizePercent_(getA1_(ss, "dash", "B114")), target: normalizePercent_(getA1_(ss, "dash", "C114")) },
-      { label: "Limpeza de Banheiros", result: normalizePercent_(getA1_(ss, "dash", "B115")), target: normalizePercent_(getA1_(ss, "dash", "C115")) },
-      { label: "Recolhimento Resíduos", result: normalizePercent_(getA1_(ss, "dash", "B116")), target: normalizePercent_(getA1_(ss, "dash", "C116")) },
-      { label: "Limpeza de Piso", result: normalizePercent_(getA1_(ss, "dash", "B117")), target: normalizePercent_(getA1_(ss, "dash", "C117")) },
-      { label: "Limpeza Técnica", result: normalizePercent_(getA1_(ss, "dash", "B118")), target: normalizePercent_(getA1_(ss, "dash", "C118")) },
-      { label: "Jardinagem", result: normalizePercent_(getA1_(ss, "dash", "B119")), target: normalizePercent_(getA1_(ss, "dash", "C119")) }
+      { label: "Limpeza de Salas", result: normalizePercent_(g("B114")), target: normalizePercent_(g("C114")) },
+      { label: "Limpeza de Banheiros", result: normalizePercent_(g("B115")), target: normalizePercent_(g("C115")) },
+      { label: "Recolhimento Resíduos", result: normalizePercent_(g("B116")), target: normalizePercent_(g("C116")) },
+      { label: "Limpeza de Piso", result: normalizePercent_(g("B117")), target: normalizePercent_(g("C117")) },
+      { label: "Limpeza Técnica", result: normalizePercent_(g("B118")), target: normalizePercent_(g("C118")) },
+      { label: "Jardinagem", result: normalizePercent_(g("B119")), target: normalizePercent_(g("C119")) }
     ],
     eficacia: [
-      { label: "Jardinagem", evaluations: toNumber_(getA1_(ss, "dash", "B108")), result: normalizePercent_(getA1_(ss, "dash", "C108")) },
-      { label: "Limpeza Técnica", evaluations: toNumber_(getA1_(ss, "dash", "B109")), result: normalizePercent_(getA1_(ss, "dash", "C109")) },
-      { label: "Limpeza Convencional", evaluations: toNumber_(getA1_(ss, "dash", "B110")), result: normalizePercent_(getA1_(ss, "dash", "C110")) },
-      { label: "Limpeza de Piso", evaluations: toNumber_(getA1_(ss, "dash", "B111")), result: normalizePercent_(getA1_(ss, "dash", "C111")) }
+      { label: "Jardinagem", evaluations: toNumber_(g("B108")), result: normalizePercent_(g("C108")) },
+      { label: "Limpeza Técnica", evaluations: toNumber_(g("B109")), result: normalizePercent_(g("C109")) },
+      { label: "Limpeza Convencional", evaluations: toNumber_(g("B110")), result: normalizePercent_(g("C110")) },
+      { label: "Limpeza de Piso", evaluations: toNumber_(g("B111")), result: normalizePercent_(g("C111")) }
     ]
   };
 }
 
-function buildUtilidadesPayload_(ss) {
-  const zuLabels = getRangeA1_(ss, "dash", "A24:AF24");
-  const zuValues = getRangeA1_(ss, "dash", "A29:AF29");
-  const prodColab = getRangeA1_(ss, "dash", "A73:D78");
-  const pcParsed = parseProdColab_(prodColab || []);
-
-  const labelsRow = Array.isArray(zuLabels) && zuLabels.length ? zuLabels[0] : [];
-  const valuesRow = Array.isArray(zuValues) && zuValues.length ? zuValues[0] : [];
+function extractZusSeriesFromBatch_(batch, rowNumber, { seriesName, color }) {
+  const labelsRow = batch.getRange("A24:AF24");
+  const valuesRow = batch.getRange("A" + rowNumber + ":AF" + rowNumber);
+  const labelsA = Array.isArray(labelsRow) && labelsRow.length ? labelsRow[0] : [];
+  const valuesA = Array.isArray(valuesRow) && valuesRow.length ? valuesRow[0] : [];
   const labels = [];
   const values = [];
-
-  for (let i = 0; i < Math.max(labelsRow.length, valuesRow.length); i++) {
-    const rawLabel = labelsRow[i];
+  for (let i = 0; i < Math.max(labelsA.length, valuesA.length); i++) {
+    const rawLabel = labelsA[i];
     const label = rawLabel instanceof Date
       ? Utilities.formatDate(rawLabel, "America/Sao_Paulo", "dd/MM")
       : String(rawLabel == null ? "" : rawLabel).trim();
     if (!label) continue;
     labels.push(label);
-    values.push(toNumber_(valuesRow[i]));
+    values.push(toNumber_(valuesA[i]));
   }
+  return { labels, series: [{ name: seriesName, data: values, color }], limit: 2 };
+}
+
+function buildUtilidadesPayload_(dashBatch) {
+  const batch = dashBatch || { getA1: () => null, getRange: () => [] };
+  const g = (a1) => batch.getA1(a1);
+  const prodColab = batch.getRange("A73:D78");
+  const pcParsed = parseProdColab_(prodColab || []);
+  const zus = extractZusSeriesFromBatch_(batch, 29, { seriesName: "Utilidades", color: "#2f80ed" });
 
   return {
-    tmaDays: toNumber_(getA1_(ss, "dash", "E21")),
-    productivityPct: normalizePercent_(getA1_(ss, "dash", "E22")),
-    avaliacoes: toNumber_(getA1_(ss, "dash", "B44")),
-    reworkPct: normalizePercent_(getA1_(ss, "dash", "B83")),
-    preventivas: normalizePercent_(getA1_(ss, "dash", "B93")),
-    atendimentoZUS: {
-      labels,
-      series: [{ name: "Utilidades", data: values, color: "#2f80ed" }],
-      limit: 2
-    },
+    tmaDays: toNumber_(g("E21")),
+    productivityPct: normalizePercent_(g("E22")),
+    avaliacoes: toNumber_(g("B44")),
+    reworkPct: normalizePercent_(g("B83")),
+    preventivas: normalizePercent_(g("B93")),
+    atendimentoZUS: zus,
     produtividadePorColaborador: pcParsed
   };
 }
 
-function buildSpciPayload_(ss) {
-  const zuLabels = getRangeA1_(ss, "dash", "A24:AF24");
-  const zuValues = getRangeA1_(ss, "dash", "A28:AF28");
-  const prodColab = getRangeA1_(ss, "dash", "A68:D72");
+function buildSpciPayload_(dashBatch) {
+  const batch = dashBatch || { getA1: () => null, getRange: () => [] };
+  const g = (a1) => batch.getA1(a1);
+  const prodColab = batch.getRange("A68:D72");
   const pcParsed = parseProdColab_(prodColab || []);
-
-  const labelsRow = Array.isArray(zuLabels) && zuLabels.length ? zuLabels[0] : [];
-  const valuesRow = Array.isArray(zuValues) && zuValues.length ? zuValues[0] : [];
-  const labels = [];
-  const values = [];
-
-  for (let i = 0; i < Math.max(labelsRow.length, valuesRow.length); i++) {
-    const rawLabel = labelsRow[i];
-    const label = rawLabel instanceof Date
-      ? Utilities.formatDate(rawLabel, "America/Sao_Paulo", "dd/MM")
-      : String(rawLabel == null ? "" : rawLabel).trim();
-    if (!label) continue;
-    labels.push(label);
-    values.push(toNumber_(valuesRow[i]));
-  }
+  const zus = extractZusSeriesFromBatch_(batch, 28, { seriesName: "SPCI", color: "#2e2e2e" });
 
   return {
-    tmaDays: toNumber_(getA1_(ss, "dash", "H21")),
-    productivityPct: normalizePercent_(getA1_(ss, "dash", "H22")),
-    avaliacoes: toNumber_(getA1_(ss, "dash", "B42")),
-    reworkPct: normalizePercent_(getA1_(ss, "dash", "B83")),
-    preventivas: normalizePercent_(getA1_(ss, "dash", "B94")),
-    atendimentoZUS: {
-      labels,
-      series: [{ name: "SPCI", data: values, color: "#2e2e2e" }],
-      limit: 2
-    },
+    tmaDays: toNumber_(g("H21")),
+    productivityPct: normalizePercent_(g("H22")),
+    avaliacoes: toNumber_(g("B42")),
+    reworkPct: normalizePercent_(g("B83")),
+    preventivas: normalizePercent_(g("B94")),
+    atendimentoZUS: zus,
     produtividadePorColaborador: pcParsed
   };
 }
@@ -1096,6 +1281,31 @@ function rowSeries_(sheet, rowNumber) {
     out.push(v);
   }
   return out;
+}
+
+function dashCustomerSatisfactionBatch_(dashBatch) {
+  const labels = monthLabels_(dashBatch.rowSeries(7));
+  const vals = dashBatch.rowSeries(8).slice(0, labels.length).map(toNumber_);
+  return { labels, bars: vals, line: vals };
+}
+
+function dashSevenSBatch_(dashBatch) {
+  const labels = monthLabels_(dashBatch.rowSeries(15));
+  const stihl = dashBatch.rowSeries(16).slice(0, labels.length).map(toNumber_);
+  const manserv = dashBatch.rowSeries(17).slice(0, labels.length).map(toNumber_);
+  const series = [{ name: "Stihl", data: stihl, color: "#ff4d00" }];
+  if (manserv.some((n) => n !== 0)) series.push({ name: "Manserv", data: manserv, color: "#2e2e2e" });
+  return { labels, series };
+}
+
+function buildGeneralAccidentsFromDashBatch_(dashBatch) {
+  const g = (a1) => dashBatch.getA1(a1);
+  return [
+    { label: "Facilities", value: toNumber_(g("B3")), lastRecord: "" },
+    { label: "LSI (Limpeza)", value: toNumber_(g("B4")), lastRecord: "" },
+    { label: "Utilidades", value: toNumber_(g("B5")), lastRecord: "" },
+    { label: "SPCI", value: toNumber_(g("B6")), lastRecord: "" }
+  ];
 }
 
 function toNumber_(v) {
@@ -1643,29 +1853,30 @@ function ensureGeneralAccidents_(accidents, ss) {
     .filter(Boolean);
 }
 
-function buildDashboardPayload_() {
+function buildDashboardPayload_(opts) {
   const cfg = getConfig_();
   if (!cfg.SPREADSHEET_ID) throw new Error("SPREADSHEET_ID ausente");
   const ss = SpreadsheetApp.openById(cfg.SPREADSHEET_ID);
 
   const last = PropertiesService.getScriptProperties().getProperty("LAST_UPDATE_ISO") || new Date().toISOString();
+  const forceCache = opts && opts.forceCache === true;
 
-  const dashSheet = ss.getSheetByName("dash");
-  if (dashSheet) {
-    const accidents = buildGeneralAccidentsFromDash_(ss);
-    const customerSatisfaction = dashCustomerSatisfaction_(dashSheet);
-    const sevenS = dashSevenS_(dashSheet);
-    const tma = getA1_(ss, "dash", "B21");
-    const prod = getA1_(ss, "dash", "B22");
-    const retrabalho = getA1_(ss, "dash", "B81");
-    const servExt = getA1_(ss, "dash", "B86");
-    const portasRapidasPendentes = getA1_(ss, "dash", "E86");
-    const alpinistas = getA1_(ss, "dash", "E89");
-    const preventivas = getA1_(ss, "dash", "B92");
-    const zu = getRangeA1_(ss, "dash", "A24:AF27");
-    const prio = getRangeA1_(ss, "dash", "A32:B36");
-    const aval = getRangeA1_(ss, "dash", "A37:B42");
-    const prodColab = getRangeA1_(ss, "dash", "A47:D67");
+  const buildFromDashSheet = (dashBatch) => {
+    const g = (a1) => dashBatch.getA1(a1);
+    const accidents = buildGeneralAccidentsFromDashBatch_(dashBatch);
+    const customerSatisfaction = dashCustomerSatisfactionBatch_(dashBatch);
+    const sevenS = dashSevenSBatch_(dashBatch);
+    const tma = g("B21");
+    const prod = g("B22");
+    const retrabalho = g("B81");
+    const servExt = g("B86");
+    const portasRapidasPendentes = g("E86");
+    const alpinistas = g("E89");
+    const preventivas = g("B92");
+    const zu = dashBatch.getRange("A24:AF27");
+    const prio = dashBatch.getRange("A32:B36");
+    const aval = dashBatch.getRange("A37:B42");
+    const prodColab = dashBatch.getRange("A47:D67");
 
     const zuParsed = parseSeriesMatrix_(zu || []);
     const prioPairs = parsePairs_(prio || []);
@@ -1710,10 +1921,27 @@ function buildDashboardPayload_() {
         },
         produtividadePorColaborador: pcParsed
       },
-      utilidades: buildUtilidadesPayload_(ss),
-      spci: buildSpciPayload_(ss),
-      lsi: buildLsiPayload_(ss)
+      utilidades: buildUtilidadesPayload_(dashBatch),
+      spci: buildSpciPayload_(dashBatch),
+      lsi: buildLsiPayload_(dashBatch)
     };
+  };
+
+  if (!forceCache) {
+    const sheetObj = ss.getSheetByName ? ss : null;
+    const dashSheet = ss.getSheetByName("dash");
+    if (dashSheet) {
+      const batch = newDashBatch_(ss);
+      return buildFromDashSheet(batch);
+    }
+  } else {
+    try {
+      const dashSheet = ss.getSheetByName("dash");
+      if (dashSheet) {
+        const batch = newDashBatch_(ss);
+        return buildFromDashSheet(batch);
+      }
+    } catch {}
   }
 
   const accValues = getSheetValues_(ss, "general_accidents");
@@ -2288,11 +2516,26 @@ function buildLsiRotinasPayload_(e) {
     if (cached) {
       try { return JSON.parse(cached); } catch {}
     }
+    try {
+      const props = PropertiesService.getScriptProperties();
+      const raw = props.getProperty("PAYLOAD_CACHE:lsi_rotinas:" + selectedDateIso);
+      if (raw) {
+        try {
+          const obj = JSON.parse(raw);
+          if (obj && typeof obj._ts === "number" && Date.now() - obj._ts < PAYLOAD_CACHE_TTL_SEC_ * 1000) return obj.data;
+        } catch {}
+      }
+    } catch {}
   }
   const putCacheIfFits_ = (value) => {
     try {
       const json = JSON.stringify(value);
-      if (json.length <= 95000) cache.put(cacheKey, json, 60);
+      if (json.length <= 95000) cache.put(cacheKey, json, PAYLOAD_CACHE_TTL_SEC_);
+      try {
+        const props = PropertiesService.getScriptProperties();
+        const env = JSON.stringify({ _ts: Date.now(), data: value });
+        if (env.length <= 130 * 1024) props.setProperty("PAYLOAD_CACHE:lsi_rotinas:" + selectedDateIso, env);
+      } catch {}
     } catch {}
   };
 
@@ -2360,6 +2603,11 @@ function buildLsiRotinasPayload_(e) {
   const selectedColumns = columnsByDate.get(selectedDateIso) || [];
   const previousColumns = columnsByDate.get(previousDateIso) || [];
 
+  const interestingCols = [];
+  selectedColumns.forEach((c) => { if (interestingCols.indexOf(c) < 0) interestingCols.push(c); });
+  previousColumns.forEach((c) => { if (interestingCols.indexOf(c) < 0) interestingCols.push(c); });
+  interestingCols.sort((a, b) => a - b);
+
   const cronogramas = [
     { id: "salas", label: "Limpeza de Salas", startRow: 7, endRow: 469 },
     { id: "banheiros", label: "Limpeza de Banheiros", startRow: 471, endRow: 590 },
@@ -2379,12 +2627,26 @@ function buildLsiRotinasPayload_(e) {
   for (const bloco of cronogramas) {
     const rowCount = bloco.endRow - bloco.startRow + 1;
     const baseRows = sheet.getRange(bloco.startRow, 2, rowCount, 6).getValues();
-    const readRows = sheet.getRange(bloco.startRow, 9, rowCount, lastCol - 8).getValues();
-    const blocScan = { blocoId: bloco.id, blocoLabel: bloco.label, startRow: bloco.startRow, endRow: bloco.endRow, totalRows: rowCount, linhasComAmbiente: 0, linhasSemAmbiente: 0, amostraAmbientes: [] };
+    let readRows;
+    let sparseMap;
+    if (interestingCols.length) {
+      const minCol = interestingCols[0];
+      const maxCol = interestingCols[interestingCols.length - 1];
+      const narrowWidth = maxCol - minCol + 1;
+      const narrow = sheet.getRange(bloco.startRow, minCol, rowCount, narrowWidth).getValues();
+      sparseMap = new Map();
+      interestingCols.forEach((absCol, idx) => sparseMap.set(absCol, idx));
+      readRows = narrow;
+    } else {
+      const full = sheet.getRange(bloco.startRow, 9, rowCount, Math.max(1, lastCol - 8)).getValues();
+      sparseMap = null;
+      readRows = full;
+    }
+    const blocScan = { blocoId: bloco.id, blocoLabel: bloco.label, startRow: bloco.startRow, endRow: bloco.endRow, totalRows: rowCount, linhasComAmbiente: 0, linhasSemAmbiente: 0, amostraAmbientes: [], readColsInteresting: interestingCols.length, readColsAll: lastCol - 8 };
 
     for (let idx = 0; idx < baseRows.length; idx++) {
       const row = baseRows[idx] || [];
-      const readRow = readRows[idx] || [];
+      const readRowAll = readRows[idx] || [];
       scanned++;
 
       const ambiente = String(row[0] == null ? "" : row[0]).trim();
@@ -2409,8 +2671,17 @@ function buildLsiRotinasPayload_(e) {
       const dayCodes = parseDayList_(row[3]);
       const frequencyCode = Math.floor(toNumber_(row[4]));
       const turnos = parseTurnList_(row[5]);
-      const currentReadValues = selectedColumns.map((column) => readRow[column - 9]);
-      const previousReadValues = previousColumns.map((column) => readRow[column - 9]);
+      const readCell = (absCol) => {
+        if (sparseMap) {
+          const localIdx = sparseMap.get(absCol);
+          if (localIdx == null) return null;
+          return readRowAll[localIdx];
+        }
+        const localIdx = absCol - 9;
+        return localIdx >= 0 ? readRowAll[localIdx] : null;
+      };
+      const currentReadValues = selectedColumns.map(readCell);
+      const previousReadValues = previousColumns.map(readCell);
       const useNightShiftRule = bloco.id === "banheiros" && turnos.indexOf("T1") >= 0;
       const actual = countOperationalDayReads_(currentReadValues, previousReadValues, useNightShiftRule);
       const dueToday = isScheduledToday_(dayCodes, frequencyCode);
@@ -2790,12 +3061,65 @@ function buildClientSchedulePayload_(e) {
 
 function doGet(e) {
   const view = e && e.parameter ? String(e.parameter.view || "").trim() : "";
+  const forceRaw = e && e.parameter ? String(e.parameter.force || "").trim() : "";
+  const forceCache = forceRaw !== "";
+
+  if (view === "warmup") {
+    const result = warmupPayloadCache_();
+    return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+  }
+  if (view === "clear_cache") {
+    invalidatePayloadCache_();
+    const res = { ok: true, clearedAt: new Date().toISOString() };
+    return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
+  }
+  if (view === "install_warmup") {
+    const r = createDashboardWarmupTrigger_();
+    const res = { ok: r === "ok", message: r, at: new Date().toISOString() };
+    return ContentService.createTextOutput(JSON.stringify(res)).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const getMondayLocal_ = (date) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    const jsDay = d.getDay();
+    const diff = jsDay === 0 ? -6 : 1 - jsDay;
+    d.setDate(d.getDate() + diff);
+    return d;
+  };
+
   let payload;
-  if (view === "prog_sem") payload = buildProgSemPayload_(e);
-  else if (view === "lsi_rotinas") payload = buildLsiRotinasPayload_(e);
-  else if (view === "cliente_cronograma") payload = buildClientSchedulePayload_(e);
-  else if (view === "cliente_os") payload = buildClientOsPayload_(e);
-  else payload = buildDashboardPayload_();
+  if (view === "prog_sem") {
+    const param = e && e.parameter ? e.parameter : {};
+    const rawWeek = String(param.weekStart || "").trim();
+    const weekStart = rawWeek
+      ? (() => { const d = new Date(`${rawWeek}T00:00:00`); d.setHours(0,0,0,0); return Number.isNaN(d.getTime()) ? getMondayLocal_(new Date()) : d; })()
+      : getMondayLocal_(new Date());
+    const weekIso = Utilities.formatDate(weekStart, "America/Sao_Paulo", "yyyy-MM-dd");
+    const key = "prog_sem:" + weekIso;
+    payload = getOrBuildPayload_(key, () => buildProgSemPayload_(e), { force: forceCache });
+  } else if (view === "lsi_rotinas") {
+    const param = e && e.parameter ? e.parameter : {};
+    const rawDate = String(param.date || "").trim();
+    let selDate;
+    if (rawDate && /^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
+      selDate = new Date(`${rawDate}T00:00:00`);
+      if (Number.isNaN(selDate.getTime())) selDate = new Date();
+    } else selDate = new Date();
+    selDate.setHours(0, 0, 0, 0);
+    const iso = Utilities.formatDate(selDate, "America/Sao_Paulo", "yyyy-MM-dd");
+    const key = "lsi_rotinas:" + iso;
+    const noCacheParam = String(param.noCache || param.bypass || "").trim();
+    const shouldForce = forceCache || noCacheParam === "1" || noCacheParam.toLowerCase() === "true";
+    payload = getOrBuildPayload_(key, () => buildLsiRotinasPayload_(e), { force: shouldForce });
+  } else if (view === "cliente_cronograma") {
+    payload = buildClientSchedulePayload_(e);
+  } else if (view === "cliente_os") {
+    payload = buildClientOsPayload_(e);
+  } else {
+    payload = getOrBuildPayload_("dashboard", () => buildDashboardPayload_(), { force: forceCache });
+  }
+
   const cb = e && e.parameter ? e.parameter.callback : "";
   if (cb) {
     const out = cb + "(" + JSON.stringify(payload) + ");";

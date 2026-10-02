@@ -996,14 +996,15 @@
     return Promise.race([fetch(url, opts).finally(cleanup), timeoutPromise]);
   }
 
-  async function fetchWeekData(monday){
+  async function fetchWeekData(monday, options){
     if(!remoteEndpoint) return null;
     const key = monday.toISOString().slice(0, 10);
-    if(remoteCache.has(key)) return remoteCache.get(key);
+    if(remoteCache.has(key) && !(options && options.force)) return remoteCache.get(key);
 
     const baseUrl = new URL(remoteEndpoint);
     baseUrl.searchParams.set('view', 'prog_sem');
     baseUrl.searchParams.set('weekStart', key);
+    if (options && options.force) baseUrl.searchParams.set('force', String(Date.now()));
 
     const payload = await _withRetries(async () => {
       const url = new URL(baseUrl.toString());
@@ -1030,10 +1031,12 @@
     return payload;
   }
 
-  async function ensureWeekData(monday){
+  async function ensureWeekData(monday, options){
     if(!remoteEndpoint) return false;
     const key = monday.toISOString().slice(0, 10);
-    const payload = await fetchWeekData(monday);
+    const force = !!(options && options.force);
+    if(force) remoteCache.delete(key);
+    const payload = await fetchWeekData(monday, { force });
     if(!payload || typeof payload !== 'object' || !payload.data) return false;
 
     const next = makeEmptyData();
@@ -1193,11 +1196,14 @@
     if(remoteEndpoint){
       setWeekLoading(true);
       weekListEl.classList.add('fading');
-      try { hasRemoteData = await ensureWeekData(monday); }
+      const forceRemote = (options => options && !!options.force)(render._lastOpts);
+      try { hasRemoteData = await ensureWeekData(monday, { force: forceRemote || weekOffset === 0 && render._requestedCurrent }); }
       catch(e){
         remoteError = e?.message ? String(e.message) : 'Falha ao carregar dados';
         try{ console.error(e); } catch {}
       }
+      render._requestedCurrent = false;
+      render._lastOpts = null;
       if(!hasRemoteData){
         DATA = makeEmptyData();
         weekTagEl.title = remoteError;
@@ -1355,7 +1361,7 @@
 
   prevWeekBtn.addEventListener('click', ()=>{ weekOffset--; render(); });
   nextWeekBtn.addEventListener('click', ()=>{ weekOffset++; render(); });
-  currentWeekBtn.addEventListener('click', ()=>{ weekOffset=0; render(); });
+  currentWeekBtn.addEventListener('click', ()=>{ weekOffset=0; render._requestedCurrent = true; render(); });
   if(backToDashboardBtn) backToDashboardBtn.addEventListener('click', goBackToDashboard);
 
   render().catch(()=>{});
