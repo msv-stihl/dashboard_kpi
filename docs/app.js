@@ -402,15 +402,15 @@ function sampleData() {
         { label: "SPCI", value: 0, lastRecord: "2026-09-01" }
       ],
       customerSatisfaction: {
-        labels: ["abr","mai","jun","jul","ago","set"],
-        bars: [90,91,89,92,90,91],
-        line: [90,91,89,92,90,91]
+        labels: ["jan./26","fev./26","mar./26","abr./26","mai./26","jun./26","jul./26","ago./26","set./26"],
+        bars: [86,86,72,84,95,89,98,93,100],
+        line: [86,86,72,84,95,89,98,93,100]
       },
       sevenS: {
-        labels: ["abr","mai","jun","jul","ago","set"],
+        labels: ["jan./26","fev./26","mar./26","abr./26","mai./26","jun./26","jul./26","ago./26","set./26"],
         series: [
-          { name: "Stihl", data: [90,90,90,90,90,90], color: "#ff4d00" },
-          { name: "Manserv", data: [85,86,85,87,86,86], color: "#2e2e2e" }
+          { name: "Stihl", data: [85,94,90,92,91,96,92,88,100], color: "#ff4d00" },
+          { name: "Manserv", data: [85,74,91,93,93,91,96,92,90], color: "#2e2e2e" }
         ]
       }
     },
