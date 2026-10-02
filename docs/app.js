@@ -446,12 +446,12 @@ function sampleData() {
       },
       prioridadeAlta: {
         labels: ["Civil", "Elétrica", "Refrigeração", "Pintura"],
-        values: [1, 1, 0, 0],
+        values: [0, 0, 0, 0],
         colors: ["#eb5757", "#eb5757", "#2f80ed", "#27ae60"]
       },
       portasRapidasPendentes: {
         labels: ["Portas Rápidas", "Alpinistas"],
-        values: [7, 2],
+        values: [0, 0],
         colors: ["#eb5757", "#eb5757"]
       },
       avaliacoes: {
@@ -1361,14 +1361,14 @@ function mountUtilidades(host, data, options = {}) {
 
   kpis.append(
     renderKpi("TMA em dias", `${formatNumberPtBR(tma, { digits: 1 })} dias`, {
-      target: 10,
-      targetLabel: "≤ 10 dias",
-      isOnTarget: evaluateKpi(tma, { target: 10, direction: "lte" })
+      target: null,
+      targetLabel: "—",
+      isOnTarget: true
     }),
     renderKpi("Produtividade", `${formatNumberPtBR(prod)}%`, {
-      target: 70,
-      targetLabel: "≥ 70%",
-      isOnTarget: evaluateKpi(prod, { target: 70, direction: "gte" })
+      target: null,
+      targetLabel: "—",
+      isOnTarget: true
     }),
     renderKpi("Avaliações", formatMetricValue(aval), {
       target: null,
