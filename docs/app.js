@@ -95,6 +95,27 @@ function compareToTargetText(result, target) {
   return `${formatNumberPtBR((res / tgt) * 100, { digits: 0 })}% da meta`;
 }
 
+function buildKpiClasses(isOnTarget) {
+  return `card mini-kpi${isOnTarget ? " is-target-ok" : " is-target-bad"}`;
+}
+
+function renderKpi(label, valueText, { target, targetLabel, isOnTarget, direction = "gte" }) {
+  return el("div", { class: buildKpiClasses(Boolean(isOnTarget)) }, [
+    el("div", { class: "card-title", text: label }),
+    el("div", { class: "mini-value", text: valueText }),
+    el("div", { class: "mini-target", text: targetLabel ? `Meta: ${targetLabel}` : "" })
+  ]);
+}
+
+function evaluateKpi(value, { target, direction = "gte" }) {
+  const v = Number(value ?? 0);
+  const t = Number(target ?? 0);
+  if (direction === "lte") return v <= t;
+  if (direction === "lt") return v < t;
+  if (direction === "gt") return v > t;
+  return v >= t;
+}
+
 const CRONOGRAMA_LEVEL_CONFIG = {
   "Limpeza de Salas": {
     targets: [80, 90],
@@ -972,23 +993,44 @@ function mountFacilities(host, data, options = {}) {
     Pintura: "#9b51e0"
   };
   const kpis = el("div", { class: "small-kpis" });
-  const mkpi = (label, valueText) =>
-    el("div", { class: "card mini-kpi" }, [
-      el("div", { class: "card-title", text: label }),
-      el("div", { class: "mini-value", text: valueText })
-    ]);
   const formatMetricValue = (value) => {
     const n = Number(value ?? 0);
     const digits = Math.abs(n % 1) > 0.001 ? 1 : 0;
     return formatNumberPtBR(n, { digits });
   };
 
+  const tma = Number(f?.tmaDays ?? 0);
+  const prod = Number(f?.productivityPct ?? 0);
+  const rework = Number(f?.reworkPct ?? 0);
+  const ext = Number(f?.servicoExterno ?? 0);
+  const prev = Number(f?.preventivas ?? 0);
+
   kpis.append(
-    mkpi("TMA em dias", formatNumberPtBR(f?.tmaDays ?? 0, { digits: 1 })),
-    mkpi("Produtividade", `${formatNumberPtBR(f?.productivityPct ?? 0)}%`),
-    mkpi("Retrabalho", `${formatNumberPtBR(f?.reworkPct ?? 0, { digits: 1 })}%`),
-    mkpi("Serviços Externos", `${formatMetricValue(f?.servicoExterno ?? 0)}%`),
-    mkpi("Preventivas", `${formatMetricValue(f?.preventivas ?? 0)}%`)
+    renderKpi("TMA em dias", `${formatNumberPtBR(tma, { digits: 1 })} dias`, {
+      target: 10,
+      targetLabel: "≤ 10 dias",
+      isOnTarget: evaluateKpi(tma, { target: 10, direction: "lte" })
+    }),
+    renderKpi("Produtividade", `${formatNumberPtBR(prod)}%`, {
+      target: 70,
+      targetLabel: "≥ 70%",
+      isOnTarget: evaluateKpi(prod, { target: 70, direction: "gte" })
+    }),
+    renderKpi("Retrabalho", `${formatNumberPtBR(rework, { digits: 1 })}%`, {
+      target: 1,
+      targetLabel: "< 1%",
+      isOnTarget: evaluateKpi(rework, { target: 1, direction: "lt" })
+    }),
+    renderKpi("Serviços Externos", `${formatMetricValue(ext)}%`, {
+      target: 90,
+      targetLabel: "≥ 90%",
+      isOnTarget: evaluateKpi(ext, { target: 90, direction: "gte" })
+    }),
+    renderKpi("Preventivas", `${formatMetricValue(prev)}%`, {
+      target: 100,
+      targetLabel: "= 100%",
+      isOnTarget: evaluateKpi(prev, { target: 100, direction: "gte" })
+    })
   );
 
   const layout = el("div", { class: "stack-lg" });
@@ -1232,7 +1274,8 @@ function mountUtilidades(host, data, options = {}) {
     Civil: "#2f80ed",
     "Elétrica": "#f2994a",
     "Refrigeração": "#27ae60",
-    Pintura: "#9b51e0"
+    Pintura: "#9b51e0",
+    Utilidades: "#2f80ed"
   };
   const fallbackPalette = ["#2f80ed", "#f2994a", "#27ae60", "#9b51e0", "#eb5757", "#56ccf2"];
   const collaboratorItems = getCollaboratorItems(u?.produtividadePorColaborador ?? {});
@@ -1244,23 +1287,44 @@ function mountUtilidades(host, data, options = {}) {
   });
 
   const kpis = el("div", { class: "small-kpis" });
-  const mkpi = (label, valueText) =>
-    el("div", { class: "card mini-kpi" }, [
-      el("div", { class: "card-title", text: label }),
-      el("div", { class: "mini-value", text: valueText })
-    ]);
   const formatMetricValue = (value) => {
     const n = Number(value ?? 0);
     const digits = Math.abs(n % 1) > 0.001 ? 1 : 0;
     return formatNumberPtBR(n, { digits });
   };
 
+  const tma = Number(u?.tmaDays ?? 0);
+  const prod = Number(u?.productivityPct ?? 0);
+  const rework = Number(u?.reworkPct ?? 0);
+  const prev = Number(u?.preventivas ?? 0);
+  const aval = Number(u?.avaliacoes ?? 0);
+
   kpis.append(
-    mkpi("TMA em dias", formatNumberPtBR(u?.tmaDays ?? 0, { digits: 1 })),
-    mkpi("Produtividade", `${formatNumberPtBR(u?.productivityPct ?? 0)}%`),
-    mkpi("Avaliações", formatMetricValue(u?.avaliacoes ?? 0)),
-    mkpi("Retrabalho", `${formatNumberPtBR(u?.reworkPct ?? 0, { digits: 1 })}%`),
-    mkpi("Preventivas", `${formatMetricValue(u?.preventivas ?? 0)}%`)
+    renderKpi("TMA em dias", `${formatNumberPtBR(tma, { digits: 1 })} dias`, {
+      target: null,
+      targetLabel: "—",
+      isOnTarget: true
+    }),
+    renderKpi("Produtividade", `${formatNumberPtBR(prod)}%`, {
+      target: null,
+      targetLabel: "—",
+      isOnTarget: true
+    }),
+    renderKpi("Avaliações", formatMetricValue(aval), {
+      target: null,
+      targetLabel: "—",
+      isOnTarget: true
+    }),
+    renderKpi("Retrabalho", `${formatNumberPtBR(rework, { digits: 1 })}%`, {
+      target: 1,
+      targetLabel: "< 1%",
+      isOnTarget: evaluateKpi(rework, { target: 1, direction: "lt" })
+    }),
+    renderKpi("Preventivas", `${formatMetricValue(prev)}%`, {
+      target: 70,
+      targetLabel: "≥ 70%",
+      isOnTarget: evaluateKpi(prev, { target: 70, direction: "gte" })
+    })
   );
 
   const layout = el("div", { class: "stack-lg" });
@@ -1402,23 +1466,44 @@ function mountSPCI(host, data, options = {}) {
   });
 
   const kpis = el("div", { class: "small-kpis" });
-  const mkpi = (label, valueText) =>
-    el("div", { class: "card mini-kpi" }, [
-      el("div", { class: "card-title", text: label }),
-      el("div", { class: "mini-value", text: valueText })
-    ]);
   const formatMetricValue = (value) => {
     const n = Number(value ?? 0);
     const digits = Math.abs(n % 1) > 0.001 ? 1 : 0;
     return formatNumberPtBR(n, { digits });
   };
 
+  const tma = Number(u?.tmaDays ?? 0);
+  const prod = Number(u?.productivityPct ?? 0);
+  const rework = Number(u?.reworkPct ?? 0);
+  const prev = Number(u?.preventivas ?? 0);
+  const aval = Number(u?.avaliacoes ?? 0);
+
   kpis.append(
-    mkpi("TMA em dias", formatNumberPtBR(u?.tmaDays ?? 0, { digits: 1 })),
-    mkpi("Produtividade", `${formatNumberPtBR(u?.productivityPct ?? 0)}%`),
-    mkpi("Avaliações", formatMetricValue(u?.avaliacoes ?? 0)),
-    mkpi("Retrabalho", `${formatNumberPtBR(u?.reworkPct ?? 0, { digits: 1 })}%`),
-    mkpi("Preventivas", `${formatMetricValue(u?.preventivas ?? 0)}%`)
+    renderKpi("TMA em dias", `${formatNumberPtBR(tma, { digits: 1 })} dias`, {
+      target: 10,
+      targetLabel: "≤ 10 dias",
+      isOnTarget: evaluateKpi(tma, { target: 10, direction: "lte" })
+    }),
+    renderKpi("Produtividade", `${formatNumberPtBR(prod)}%`, {
+      target: 70,
+      targetLabel: "≥ 70%",
+      isOnTarget: evaluateKpi(prod, { target: 70, direction: "gte" })
+    }),
+    renderKpi("Avaliações", formatMetricValue(aval), {
+      target: null,
+      targetLabel: "—",
+      isOnTarget: true
+    }),
+    renderKpi("Retrabalho", `${formatNumberPtBR(rework, { digits: 1 })}%`, {
+      target: 1,
+      targetLabel: "< 1%",
+      isOnTarget: evaluateKpi(rework, { target: 1, direction: "lt" })
+    }),
+    renderKpi("Preventivas", `${formatMetricValue(prev)}%`, {
+      target: 100,
+      targetLabel: "= 100%",
+      isOnTarget: evaluateKpi(prev, { target: 100, direction: "gte" })
+    })
   );
 
   const layout = el("div", { class: "stack-lg" });

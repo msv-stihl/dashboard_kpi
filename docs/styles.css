@@ -325,13 +325,40 @@ body{
   gap:18px;
   margin-bottom:18px;
 }
+.mini-kpi{
+  position:relative;
+  padding:14px 14px 12px 14px;
+  border:2px solid rgba(0,0,0,.06);
+  transition:border-color .2s ease, box-shadow .2s ease;
+}
 .mini-kpi .card-title{margin-bottom:6px}
 .mini-kpi .mini-value{
   font-size:44px;
   line-height:1;
   text-align:center;
-  padding:4px 0 2px 0;
+  padding:4px 0 10px 0;
+  font-weight:700;
+  transition:color .2s ease;
 }
+.mini-kpi .mini-target{
+  font-size:12px;
+  line-height:1.1;
+  text-align:center;
+  color:rgba(0,0,0,.55);
+  padding-top:2px;
+  border-top:1px solid rgba(0,0,0,.06);
+  margin-top:2px;
+}
+.mini-kpi.is-target-ok{
+  border-color:#27ae60;
+  box-shadow:0 2px 0 rgba(39,174,96,.08) inset;
+}
+.mini-kpi.is-target-ok .mini-value{color:#1a8c4c}
+.mini-kpi.is-target-bad{
+  border-color:#eb5757;
+  box-shadow:0 2px 0 rgba(235,87,87,.08) inset;
+}
+.mini-kpi.is-target-bad .mini-value{color:#c73a3a}
 .placeholder{
   display:grid;
   place-items:center;
