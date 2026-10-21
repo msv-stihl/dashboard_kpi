@@ -528,7 +528,7 @@ const store = {
 
 function destroyCharts() {
   for (const chart of store.charts.values()) {
-    try { chart.destroy(); } catch {}
+    try { chart.destroy(); } catch { }
   }
   store.charts.clear();
 }
@@ -584,7 +584,7 @@ function clearSlideshowResizeHandler() {
 
 function resizeVisibleCharts() {
   for (const chart of store.charts.values()) {
-    try { chart.resize(); } catch {}
+    try { chart.resize(); } catch { }
   }
 }
 
@@ -739,7 +739,7 @@ async function withRetries(fn, { maxRetries = FETCH_MAX_RETRIES, baseDelay = FET
       if (attempt >= maxRetries) break;
       const delay = baseDelay * Math.pow(2, attempt) + Math.floor(Math.random() * 500);
       if (typeof onRetry === "function") {
-        try { onRetry(err, attempt + 1, maxRetries, delay); } catch {}
+        try { onRetry(err, attempt + 1, maxRetries, delay); } catch { }
       }
       await sleep(delay);
     }
@@ -759,7 +759,7 @@ function fetchJsonp(urlString, { force = false, timeoutMs = FETCH_TIMEOUT_MS } =
     const cleanup = () => {
       if (done) return;
       done = true;
-      try { delete window[cbName]; } catch {}
+      try { delete window[cbName]; } catch { }
       if (script && script.parentNode) script.parentNode.removeChild(script);
       if (timer) clearTimeout(timer);
     };
@@ -802,7 +802,7 @@ function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
   const timeoutPromise = new Promise((_, reject) => {
     timeoutId = setTimeout(() => {
       if (controller) {
-        try { controller.abort(); } catch {}
+        try { controller.abort(); } catch { }
       }
       reject(new Error("Timeout na requisição"));
     }, timeoutMs);
@@ -833,7 +833,7 @@ async function fetchDashboardData({ force = false } = {}) {
 
     let retryInfo = "";
     const onRetry = (_err, attempt, max, delay) => {
-      retryInfo = ` (tentativa ${attempt}/${max} em ${(delay/1000).toFixed(1)}s)`;
+      retryInfo = ` (tentativa ${attempt}/${max} em ${(delay / 1000).toFixed(1)}s)`;
       setLastUpdatedText(`Carregando${retryInfo}...`);
     };
 
@@ -868,7 +868,7 @@ async function fetchDashboardData({ force = false } = {}) {
     store.lastError = e?.message ? String(e.message) : "Falha ao buscar dados";
     const cached = localStorage.getItem("dashboard:lastData");
     if (cached) {
-      try { store.data = JSON.parse(cached); } catch {}
+      try { store.data = JSON.parse(cached); } catch { }
     }
     if (!store.data) store.data = sampleData();
     return store.data;
@@ -1018,7 +1018,7 @@ function mountFacilities(host, data, options = {}) {
     }),
     renderKpi("Retrabalho", `${formatNumberPtBR(rework, { digits: 1 })}%`, {
       target: 1,
-      targetLabel: "< 1%",
+      targetLabel: "≤ 1%",
       isOnTarget: evaluateKpi(rework, { target: 1, direction: "lt" })
     }),
     renderKpi("Serviços Externos", `${formatMetricValue(ext)}%`, {
@@ -1317,7 +1317,7 @@ function mountUtilidades(host, data, options = {}) {
     }),
     renderKpi("Retrabalho", `${formatNumberPtBR(rework, { digits: 1 })}%`, {
       target: 1,
-      targetLabel: "< 1%",
+      targetLabel: "≤ 1%",
       isOnTarget: evaluateKpi(rework, { target: 1, direction: "lt" })
     }),
     renderKpi("Preventivas", `${formatMetricValue(prev)}%`, {
@@ -1496,7 +1496,7 @@ function mountSPCI(host, data, options = {}) {
     }),
     renderKpi("Retrabalho", `${formatNumberPtBR(rework, { digits: 1 })}%`, {
       target: 1,
-      targetLabel: "< 1%",
+      targetLabel: "≤ 1%",
       isOnTarget: evaluateKpi(rework, { target: 1, direction: "lt" })
     }),
     renderKpi("Preventivas", `${formatMetricValue(prev)}%`, {
@@ -1674,9 +1674,9 @@ function mountLSI(host, data, options = {}) {
     const thresholdItems = (getCronogramaConfig(label).thresholds || []).map((t) => {
       const dotColor =
         t.color === "red" ? "#d94b44" :
-        t.color === "orange" ? "#ff7b2e" :
-        t.color === "yellow" ? "#f5c231" :
-        "#6ec140";
+          t.color === "orange" ? "#ff7b2e" :
+            t.color === "yellow" ? "#f5c231" :
+              "#6ec140";
       return el("span", { class: "lsi-bullet-legend-item" }, [
         el("span", { class: "lsi-bullet-legend-dot", style: `background:${dotColor}` }),
         el("span", { text: t.label })
