@@ -509,10 +509,38 @@ function sampleData() {
         { label: "Jardinagem", result: 96, target: 94 }
       ],
       eficacia: [
-        { label: "Jardinagem", evaluations: 18, result: 94 },
-        { label: "Limpeza Técnica", evaluations: 21, result: 89 },
-        { label: "Limpeza Convencional", evaluations: 26, result: 91 },
-        { label: "Limpeza de Piso", evaluations: 14, result: 87 }
+        {
+          label: "Jardinagem",
+          evaluations: 18,
+          result: 94,
+          manserv: { evaluations: 10, result: 96 },
+          stihl: { evaluations: 8, result: 92 },
+          total: { evaluations: 18, result: 94 }
+        },
+        {
+          label: "Limpeza Técnica",
+          evaluations: 21,
+          result: 89,
+          manserv: { evaluations: 12, result: 91 },
+          stihl: { evaluations: 9, result: 87 },
+          total: { evaluations: 21, result: 89 }
+        },
+        {
+          label: "Limpeza Convencional",
+          evaluations: 26,
+          result: 91,
+          manserv: { evaluations: 15, result: 93 },
+          stihl: { evaluations: 11, result: 89 },
+          total: { evaluations: 26, result: 91 }
+        },
+        {
+          label: "Limpeza de Piso",
+          evaluations: 14,
+          result: 87,
+          manserv: { evaluations: 8, result: 89 },
+          stihl: { evaluations: 6, result: 85 },
+          total: { evaluations: 14, result: 87 }
+        }
       ]
     }
   };
@@ -1712,15 +1740,47 @@ function mountLSI(host, data, options = {}) {
   }
 
   const effTitle = showEficacia ? el("div", { class: "section-title section-subtitle", text: "Eficácia" }) : null;
-  const effGrid = showEficacia ? el("div", { class: "grid-2" }) : null;
+  const effGrid = showEficacia ? el("div", { class: "lsi-eficacia-stack" }) : null;
+
+  const eficaciaSubCharts = [
+    { key: "manserv", title: "Manserv", color: "#FF460A" },
+    { key: "stihl", title: "GEMBAs Stihl", color: "#111111" },
+    { key: "total", title: "Total", color: "#802C62" }
+  ];
+
+  const resolveEficaciaGroup = (metric, key) => {
+    const sub = metric?.[key];
+    if (sub && typeof sub === "object") {
+      return {
+        evaluations: Number(sub.evaluations ?? 0),
+        result: Number(sub.result ?? 0)
+      };
+    }
+    if (key === "total") {
+      return {
+        evaluations: Number(metric?.evaluations ?? 0),
+        result: Number(metric?.result ?? 0)
+      };
+    }
+    return { evaluations: 0, result: 0 };
+  };
 
   (showEficacia ? eficacia : []).forEach((metric, idx) => {
+    const subCards = eficaciaSubCharts.map((cfg) => {
+      const groupData = resolveEficaciaGroup(metric, cfg.key);
+      const canvasId = `chartLsiEficacia_${idx}_${cfg.key}`;
+      return el("div", { class: "lsi-eficacia-subcard" }, [
+        el("div", { class: "lsi-eficacia-subtitle", text: cfg.title }),
+        el("div", { class: "lsi-chart-caption", text: `${formatNumberPtBR(groupData.evaluations)} avaliações` }),
+        el("div", { class: "lsi-chart-value", text: formatPercentValue(groupData.result) }),
+        el("div", { class: "chart-wrap medium lsi-eficacia-chart-wrap" }, [el("canvas", { id: canvasId })])
+      ]);
+    });
+
     effGrid.append(
-      el("div", { class: "card chart-panel lsi-chart-card" }, [
-        el("div", { class: "card-title", text: metric?.label ?? "" }),
-        el("div", { class: "lsi-chart-caption", text: `${formatNumberPtBR(metric?.evaluations ?? 0)} avaliações` }),
-        el("div", { class: "lsi-chart-value", text: formatPercentValue(metric?.result ?? 0) }),
-        el("div", { class: "chart-wrap medium" }, [el("canvas", { id: `chartLsiEficacia${idx}` })])
+      el("div", { class: "card chart-panel lsi-eficacia-row-card" }, [
+        el("div", { class: "card-title lsi-eficacia-row-title", text: metric?.label ?? "" }),
+        el("div", { class: "lsi-eficacia-row-grid" }, subCards)
       ])
     );
   });
@@ -1736,48 +1796,43 @@ function mountLSI(host, data, options = {}) {
     renderZusChart("#chartLsiAtendimentoZUS", "chartLsiAtendimentoZUS", az, { defaultColor: "#333", fallbackLimit: 2, minMax: 3 });
   }
 
-  const eficaciaColors = {
-    Jardinagem: "#ff4fa3",
-    "Limpeza Técnica": "#3a3a3a",
-    "Limpeza Convencional": "#7b3ff2",
-    "Limpeza de Piso": "#810B38",
-    "Limpeza de Pisos": "#810B38"
-  };
-
   (showEficacia ? eficacia : []).forEach((metric, idx) => {
-    const ctx = qs(`#chartLsiEficacia${idx}`)?.getContext("2d");
-    if (!ctx) return;
+    eficaciaSubCharts.forEach((cfg) => {
+      const chartId = `chartLsiEficacia_${idx}_${cfg.key}`;
+      const ctx = qs(`#${chartId}`)?.getContext("2d");
+      if (!ctx) return;
 
-    const value = clamp(Number(metric?.result ?? 0), 0, 100);
-    const chartId = `chartLsiEficacia${idx}`;
-    const metricLabel = String(metric?.label ?? "");
-    const accentColor = eficaciaColors[metricLabel] ?? "#2f80ed";
-    const chart = new Chart(ctx, {
-      type: "doughnut",
-      data: {
-        labels: ["Resultado", "Restante"],
-        datasets: [{ data: [value, Math.max(0, 100 - value)], backgroundColor: [accentColor, "#edf2f7"], borderWidth: 0 }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: "68%",
-        plugins: {
-          legend: { display: false },
-          doughnutCenterText: {
-            text: formatPercentValue(value),
-            color: accentColor
-          },
-          doughnutTargetMarker: {
-            targetPct: 85,
-            color: darkenColor(accentColor, 0.3),
-            lineWidth: 4
+      const groupData = resolveEficaciaGroup(metric, cfg.key);
+      const value = clamp(Number(groupData.result ?? 0), 0, 100);
+      const accentColor = cfg.color;
+      const chart = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: ["Resultado", "Restante"],
+          datasets: [{ data: [value, Math.max(0, 100 - value)], backgroundColor: [accentColor, "#edf2f7"], borderWidth: 0 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "68%",
+          plugins: {
+            legend: { display: false },
+            doughnutCenterText: {
+              text: formatPercentValue(value),
+              color: accentColor,
+              font: tvMode ? "600 15px Inter, system-ui, sans-serif" : "600 20px Inter, system-ui, sans-serif"
+            },
+            doughnutTargetMarker: {
+              targetPct: 85,
+              color: darkenColor(accentColor, 0.3),
+              lineWidth: 4
+            }
           }
         }
-      }
-    });
+      });
 
-    store.charts.set(chartId, chart);
+      store.charts.set(chartId, chart);
+    });
   });
 }
 

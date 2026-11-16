@@ -1208,10 +1208,38 @@ function buildLsiPayload_(dashBatch) {
       { label: "Jardinagem", result: normalizePercent_(g("B119")), target: normalizePercent_(g("C119")) }
     ],
     eficacia: [
-      { label: "Jardinagem", evaluations: toNumber_(g("B108")), result: normalizePercent_(g("C108")) },
-      { label: "Limpeza Técnica", evaluations: toNumber_(g("B109")), result: normalizePercent_(g("C109")) },
-      { label: "Limpeza Convencional", evaluations: toNumber_(g("B110")), result: normalizePercent_(g("C110")) },
-      { label: "Limpeza de Piso", evaluations: toNumber_(g("B111")), result: normalizePercent_(g("C111")) }
+      {
+        label: "Jardinagem",
+        evaluations: toNumber_(g("B108")),
+        result: normalizePercent_(g("C108")),
+        manserv: { evaluations: toNumber_(g("F108")), result: normalizePercent_(g("G108")) },
+        stihl: { evaluations: toNumber_(g("J108")), result: normalizePercent_(g("K108")) },
+        total: { evaluations: toNumber_(g("B108")), result: normalizePercent_(g("C108")) }
+      },
+      {
+        label: "Limpeza Técnica",
+        evaluations: toNumber_(g("B109")),
+        result: normalizePercent_(g("C109")),
+        manserv: { evaluations: toNumber_(g("F109")), result: normalizePercent_(g("G109")) },
+        stihl: { evaluations: toNumber_(g("J109")), result: normalizePercent_(g("K109")) },
+        total: { evaluations: toNumber_(g("B109")), result: normalizePercent_(g("C109")) }
+      },
+      {
+        label: "Limpeza Convencional",
+        evaluations: toNumber_(g("B110")),
+        result: normalizePercent_(g("C110")),
+        manserv: { evaluations: toNumber_(g("F110")), result: normalizePercent_(g("G110")) },
+        stihl: { evaluations: toNumber_(g("J110")), result: normalizePercent_(g("K110")) },
+        total: { evaluations: toNumber_(g("B110")), result: normalizePercent_(g("C110")) }
+      },
+      {
+        label: "Limpeza de Piso",
+        evaluations: toNumber_(g("B111")),
+        result: normalizePercent_(g("C111")),
+        manserv: { evaluations: toNumber_(g("F111")), result: normalizePercent_(g("G111")) },
+        stihl: { evaluations: toNumber_(g("J111")), result: normalizePercent_(g("K111")) },
+        total: { evaluations: toNumber_(g("B111")), result: normalizePercent_(g("C111")) }
+      }
     ]
   };
 }
