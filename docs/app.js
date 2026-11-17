@@ -466,6 +466,17 @@ function sampleData() {
         color: "#2f66ff"
       }
     },
+    camarasFriasP27: {
+      tmaDays: 5.4,
+      preventivas: 100,
+      atendimentoZUS: {
+        labels: ["01/06", "02/06", "03/06", "04/06", "05/06"],
+        series: [
+          { name: "Câmaras Frias P27", color: "#2f80ed", data: [0.8, 0.9, 1.1, 0.7, 0.5] }
+        ],
+        limit: 2
+      }
+    },
     spci: {
       tmaDays: 6.4,
       productivityPct: 76,
@@ -672,6 +683,11 @@ function getSlideshowSlides(data) {
       key: "utilidades",
       title: "Utilidades",
       render: (host) => mountUtilidades(host, data, { tvMode: true })
+    },
+    {
+      key: "camaras-frias-p27",
+      title: "Câmaras Frias P27",
+      render: (host) => mountCamarasFriasP27(host, data, { tvMode: true })
     },
     {
       key: "spci",
@@ -1473,6 +1489,47 @@ function mountUtilidades(host, data, options = {}) {
   }
 }
 
+function mountCamarasFriasP27(host, data, options = {}) {
+  const { tvMode = false } = options;
+  if (tvMode) applyTvSlideLayout(host, "tv-slide-utilidades");
+  const cf = data?.camarasFriasP27 ?? {};
+
+  const kpis = el("div", { class: "small-kpis" });
+  const formatMetricValue = (value) => {
+    const n = Number(value ?? 0);
+    const digits = Math.abs(n % 1) > 0.001 ? 1 : 0;
+    return formatNumberPtBR(n, { digits });
+  };
+
+  const tma = Number(cf?.tmaDays ?? 0);
+  const prev = Number(cf?.preventivas ?? 0);
+
+  kpis.append(
+    renderKpi("TMA em dias", `${formatNumberPtBR(tma, { digits: 1 })} dias`, {
+      target: 10,
+      targetLabel: "< 10 dias",
+      isOnTarget: evaluateKpi(tma, { target: 10, direction: "lt" })
+    }),
+    renderKpi("Preventivas", `${formatMetricValue(prev)}%`, {
+      target: 100,
+      targetLabel: "= 100%",
+      isOnTarget: evaluateKpi(prev, { target: 100, direction: "gte" })
+    })
+  );
+
+  const layout = el("div", { class: "stack-lg" });
+  const zusCard = el("div", { class: "card chart-panel chart-card-full" }, [
+    el("div", { class: "card-title", text: "Atendimento ZUS" }),
+    el("div", { class: `chart-wrap${tvMode ? " medium" : " tall"}` }, [el("canvas", { id: "chartCamarasFriasP27ZUS" })])
+  ]);
+
+  layout.append(zusCard);
+  host.append(kpis, layout);
+
+  const az = cf?.atendimentoZUS ?? {};
+  renderZusChart("#chartCamarasFriasP27ZUS", "chartCamarasFriasP27ZUS", az, { defaultColor: "#2f80ed", fallbackLimit: 2, minMax: 3 });
+}
+
 function mountSPCI(host, data, options = {}) {
   const { tvMode = false } = options;
   if (tvMode) applyTvSlideLayout(host, "tv-slide-spci");
@@ -1862,6 +1919,7 @@ function renderRoute(route) {
   else if (route === "facilities") mountFacilities(host, store.data);
   else if (route === "lsi") mountLSI(host, store.data);
   else if (route === "utilidades") mountUtilidades(host, store.data);
+  else if (route === "camaras-frias-p27") mountCamarasFriasP27(host, store.data);
   else if (route === "spci") mountSPCI(host, store.data);
   else if (route === "programacao") {
     location.replace("./prog_sem.html");

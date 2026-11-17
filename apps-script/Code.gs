@@ -1244,9 +1244,9 @@ function buildLsiPayload_(dashBatch) {
   };
 }
 
-function extractZusSeriesFromBatch_(batch, rowNumber, { seriesName, color }) {
-  const labelsRow = batch.getRange("A24:AF24");
-  const valuesRow = batch.getRange("A" + rowNumber + ":AF" + rowNumber);
+function extractZusSeriesFromBatch_(batch, rowNumber, { seriesName, color, startCol = "A" }) {
+  const labelsRow = batch.getRange(startCol + "24:AF24");
+  const valuesRow = batch.getRange(startCol + rowNumber + ":AF" + rowNumber);
   const labelsA = Array.isArray(labelsRow) && labelsRow.length ? labelsRow[0] : [];
   const valuesA = Array.isArray(valuesRow) && valuesRow.length ? valuesRow[0] : [];
   const labels = [];
@@ -1261,6 +1261,18 @@ function extractZusSeriesFromBatch_(batch, rowNumber, { seriesName, color }) {
     values.push(toNumber_(valuesA[i]));
   }
   return { labels, series: [{ name: seriesName, data: values, color }], limit: 2 };
+}
+
+function buildCamarasFriasP27Payload_(dashBatch) {
+  const batch = dashBatch || { getA1: () => null, getRange: () => [] };
+  const g = (a1) => batch.getA1(a1);
+  const zus = extractZusSeriesFromBatch_(batch, 30, { seriesName: "Câmaras Frias P27", color: "#2f80ed", startCol: "B" });
+
+  return {
+    tmaDays: toNumber_(g("K21")),
+    preventivas: normalizePercent_(g("B95")),
+    atendimentoZUS: zus
+  };
 }
 
 function buildUtilidadesPayload_(dashBatch) {
@@ -1955,6 +1967,7 @@ function buildDashboardPayload_(opts) {
         produtividadePorColaborador: pcParsed
       },
       utilidades: buildUtilidadesPayload_(dashBatch),
+      camarasFriasP27: buildCamarasFriasP27Payload_(dashBatch),
       spci: buildSpciPayload_(dashBatch),
       lsi: buildLsiPayload_(dashBatch)
     };
@@ -2099,6 +2112,7 @@ function buildDashboardPayload_(opts) {
       }
     },
     utilidades: buildUtilidadesPayload_(ss),
+    camarasFriasP27: buildCamarasFriasP27Payload_(ss),
     spci: buildSpciPayload_(ss),
     lsi: buildLsiPayload_(ss)
   };
